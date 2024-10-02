@@ -30,9 +30,6 @@
 
 namespace MTL
 {
-
-static const NS::UInteger BufferLayoutStrideDynamic = NS::UIntegerMax;
-
 _MTL_ENUM(NS::UInteger, VertexFormat) {
     VertexFormatInvalid = 0,
     VertexFormatUChar2 = 1,
@@ -86,8 +83,6 @@ _MTL_ENUM(NS::UInteger, VertexFormat) {
     VertexFormatUShortNormalized = 51,
     VertexFormatShortNormalized = 52,
     VertexFormatHalf = 53,
-    VertexFormatFloatRG11B10 = 54,
-    VertexFormatFloatRGB9E5 = 55,
 };
 
 _MTL_ENUM(NS::UInteger, VertexStepFunction) {

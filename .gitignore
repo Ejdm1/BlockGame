@@ -1,4 +1,6 @@
-.DS_Store
 build/
 .cache/
+lukasino_rep/
+dependencies/glfw/
 compile_commands.json
+.DS_Store

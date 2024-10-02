@@ -82,7 +82,6 @@ _MTL_OPTIONS(NS::UInteger, TextureUsage) {
     TextureUsageShaderWrite = 2,
     TextureUsageRenderTarget = 4,
     TextureUsagePixelFormatView = 16,
-    TextureUsageShaderAtomic = 32,
 };
 
 _MTL_ENUM(NS::Integer, TextureCompressionType) {
