@@ -21,15 +21,18 @@
 
 MTL::Device* device;
 MTL::RenderPipelineState* _pPSO;
-MTL::Buffer* _pVertexPositionsBuffer;
 MTL::Buffer* _pVertexColorsBuffer;
 MTL::Library* _pShaderLibrary;
-MTL::Buffer* _pArgBuffer;
 MTL::Buffer* _pFrameData[3];
-static const int kMaxFramesInFlight = 3;
+static constexpr size_t kNumInstances = 32;
+static constexpr size_t kMaxFramesInFlight = 3;
 float _angle = 0.0f;
 int _frame = 0;
 dispatch_semaphore_t _semaphore;
+MTL::Buffer* _pInstanceDataBuffer[kMaxFramesInFlight];
+MTL::Buffer* _pIndexBuffer;
+MTL::Buffer* _pVertexDataBuffer;
+
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
@@ -38,6 +41,15 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
             glfwSetWindowShouldClose(window, GLFW_TRUE);
             break;
     }
+}
+
+namespace shader_types
+{
+    struct InstanceData
+    {
+        simd::float4x4 instanceTransform;
+        simd::float4 instanceColor;
+    };
 }
 
 void buildShader() {
@@ -55,22 +67,24 @@ void buildShader() {
 
         struct VertexData
         {
-            device float3* positions [[id(0)]];
-            device float3* colors [[id(1)]];
+            float3 position;
         };
 
-        struct FrameData
+        struct InstanceData
         {
-            float angle;
+            float4x4 instanceTransform;
+            float4 instanceColor;
         };
 
-        v2f vertex vertexMain( device const VertexData* vertexData [[buffer(0)]], constant FrameData* frameData [[buffer(1)]], uint vertexId [[vertex_id]] )
+        v2f vertex vertexMain( device const VertexData* vertexData [[buffer(0)]],
+                               device const InstanceData* instanceData [[buffer(1)]],
+                               uint vertexId [[vertex_id]],
+                               uint instanceId [[instance_id]] )
         {
-            float a = frameData->angle;
-            float3x3 rotationMatrix = float3x3( sin(a), cos(a), 0.0, cos(a), -sin(a), 0.0, 0.0, 0.0, 1.0 );
             v2f o;
-            o.position = float4( rotationMatrix * vertexData->positions[ vertexId ], 1.0 );
-            o.color = half3(vertexData->colors[ vertexId ]);
+            float4 pos = float4( vertexData[ vertexId ].position, 1.0 );
+            o.position = instanceData[ instanceId ].instanceTransform * pos;
+            o.color = half3( instanceData[ instanceId ].instanceColor.rgb );
             return o;
         }
 
@@ -111,56 +125,42 @@ void buildShader() {
 
 void buildBuffers()
 {
-    const size_t NumVertices = 3;
+    using simd::float3;
 
-    simd::float3 positions[NumVertices] =
-    {
-        { -0.8f,  0.8f, 0.0f },
-        {  0.0f, -0.8f, 0.0f },
-        { +0.8f,  0.8f, 0.0f }
+    const float s = 0.5f;
+
+    float3 verts[] = {
+        { -s, -s, +s },
+        { +s, -s, +s },
+        { +s, +s, +s },
+        { -s, +s, +s }
     };
 
-    simd::float3 colors[NumVertices] =
-    {
-        {  1.0, 0.3f, 0.2f },
-        {  0.8f, 1.0, 0.0f },
-        {  0.8f, 0.0f, 1.0 }
+    uint16_t indices[] = {
+        0, 1, 2,
+        2, 3, 0,
     };
 
-    const size_t positionsDataSize = NumVertices * sizeof( simd::float3 );
-    const size_t colorDataSize = NumVertices * sizeof( simd::float3 );
+    const size_t vertexDataSize = sizeof( verts );
+    const size_t indexDataSize = sizeof( indices );
 
-    MTL::Buffer* pVertexPositionsBuffer = device->newBuffer( positionsDataSize, MTL::ResourceStorageModeManaged );
-    MTL::Buffer* pVertexColorsBuffer = device->newBuffer( colorDataSize, MTL::ResourceStorageModeManaged );
+    MTL::Buffer* pVertexBuffer = device->newBuffer( vertexDataSize, MTL::ResourceStorageModeManaged );
+    MTL::Buffer* pIndexBuffer = device->newBuffer( indexDataSize, MTL::ResourceStorageModeManaged );
 
-    _pVertexPositionsBuffer = pVertexPositionsBuffer;
-    _pVertexColorsBuffer = pVertexColorsBuffer;
+    _pVertexDataBuffer = pVertexBuffer;
+    _pIndexBuffer = pIndexBuffer;
 
-    memcpy( _pVertexPositionsBuffer->contents(), positions, positionsDataSize );
-    memcpy( _pVertexColorsBuffer->contents(), colors, colorDataSize );
+    memcpy( _pVertexDataBuffer->contents(), verts, vertexDataSize );
+    memcpy( _pIndexBuffer->contents(), indices, indexDataSize );
 
-    _pVertexPositionsBuffer->didModifyRange( NS::Range::Make( 0, _pVertexPositionsBuffer->length() ) );
-    _pVertexColorsBuffer->didModifyRange( NS::Range::Make( 0, _pVertexColorsBuffer->length() ) );
+    _pVertexDataBuffer->didModifyRange( NS::Range::Make( 0, _pVertexDataBuffer->length() ) );
+    _pIndexBuffer->didModifyRange( NS::Range::Make( 0, _pIndexBuffer->length() ) );
 
-
-    using NS::StringEncoding::UTF8StringEncoding;
-    assert( _pShaderLibrary );
-
-    MTL::Function* pVertexFn = _pShaderLibrary->newFunction( NS::String::string( "vertexMain", UTF8StringEncoding ) );
-    MTL::ArgumentEncoder* pArgEncoder = pVertexFn->newArgumentEncoder( 0 );
-       
-    MTL::Buffer* pArgBuffer = device->newBuffer( pArgEncoder->encodedLength(), MTL::ResourceStorageModeManaged );
-    _pArgBuffer = pArgBuffer;
-
-    pArgEncoder->setArgumentBuffer( _pArgBuffer, 0 );
-
-    pArgEncoder->setBuffer( _pVertexPositionsBuffer, 0, 0 );
-    pArgEncoder->setBuffer( _pVertexColorsBuffer, 0, 1 );
-
-    _pArgBuffer->didModifyRange( NS::Range::Make( 0, _pArgBuffer->length() ) );
-
-    pVertexFn->release();
-    pArgEncoder->release();
+    const size_t instanceDataSize = kMaxFramesInFlight * kNumInstances * sizeof( shader_types::InstanceData );
+    for ( size_t i = 0; i < kMaxFramesInFlight; ++i )
+    {
+        _pInstanceDataBuffer[ i ] = device->newBuffer( instanceDataSize, MTL::ResourceStorageModeManaged );
+    }
 
     std::cout << "Buffers built" << std::endl;
 }
@@ -179,6 +179,9 @@ void buildFrameData()
 }
 
 int main() {
+
+    using simd::float4;
+    using simd::float4x4;
     //glfw stuff
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -218,7 +221,7 @@ int main() {
         metalDrawable = metalLayer->nextDrawable();
 
         _frame = (_frame + 1) % kMaxFramesInFlight;
-        MTL::Buffer* pFrameDataBuffer = _pFrameData[ _frame ];
+        MTL::Buffer* pInstanceDataBuffer = _pInstanceDataBuffer[ _frame ];
 
         MTL::CommandBuffer* pCmd = commandQueue->commandBuffer();
         dispatch_semaphore_wait( _semaphore, DISPATCH_TIME_FOREVER );
@@ -226,8 +229,27 @@ int main() {
             dispatch_semaphore_signal( _semaphore );
         });
 
-    reinterpret_cast< FrameData * >( pFrameDataBuffer->contents() )->angle = (_angle += 0.01f);
-    pFrameDataBuffer->didModifyRange( NS::Range::Make( 0, sizeof( FrameData ) ) );
+        _angle += 0.01f;
+
+        const float scl = 0.1f;
+        shader_types::InstanceData* pInstanceData = reinterpret_cast< shader_types::InstanceData *>( pInstanceDataBuffer->contents() );
+        for ( size_t i = 0; i < kNumInstances; ++i )
+        {
+            float iDivNumInstances = i / (float)kNumInstances;
+            float xoff = (iDivNumInstances * 2.0f - 1.0f) + (1.f/kNumInstances);
+            float yoff = sin( ( iDivNumInstances + _angle ) * 2.0f * M_PI);
+            pInstanceData[ i ].instanceTransform = (float4x4){ (float4){ scl * sinf(_angle), scl * cosf(_angle), 0.f, 0.f },
+                                                            (float4){ scl * cosf(_angle), scl * -sinf(_angle), 0.f, 0.f },
+                                                            (float4){ 0.f, 0.f, scl, 0.f },
+                                                            (float4){ xoff, yoff, 0.f, 1.f } };
+
+            float r = iDivNumInstances;
+            float g = 1.0f - r;
+            float b = sinf( M_PI * 2.0f * iDivNumInstances );
+            pInstanceData[ i ].instanceColor = (float4){ r, g, b, 1.0f };
+        }
+        pInstanceDataBuffer->didModifyRange( NS::Range::Make( 0, pInstanceDataBuffer->length() ) );
+
 
         MTL::RenderPassDescriptor* renderPassDescriptor = MTL::RenderPassDescriptor::alloc()->init();
 
@@ -240,12 +262,14 @@ int main() {
         MTL::RenderCommandEncoder* pEnc = pCmd->renderCommandEncoder( renderPassDescriptor );
 
         pEnc->setRenderPipelineState( _pPSO );
-        pEnc->setVertexBuffer( _pArgBuffer, 0, 0 );
-        pEnc->useResource( _pVertexPositionsBuffer, MTL::ResourceUsageRead );
-        pEnc->useResource( _pVertexColorsBuffer, MTL::ResourceUsageRead );
-
-        pEnc->setVertexBuffer( pFrameDataBuffer, 0, 1 );
-        pEnc->drawPrimitives( MTL::PrimitiveType::PrimitiveTypeTriangle, NS::UInteger(0), NS::UInteger(3) );
+        pEnc->setVertexBuffer( _pVertexDataBuffer, 0, 0 );
+        pEnc->setVertexBuffer( pInstanceDataBuffer, 0, 1 );
+        
+        pEnc->drawIndexedPrimitives( MTL::PrimitiveType::PrimitiveTypeTriangle,
+                                6, MTL::IndexType::IndexTypeUInt16,
+                                _pIndexBuffer,
+                                0,
+                                kNumInstances );
 
         pEnc->endEncoding();
         pCmd->presentDrawable(metalDrawable);
@@ -261,13 +285,12 @@ int main() {
     glfwTerminate();
     device->release();
     _pShaderLibrary->release();
-    _pArgBuffer->release();
-    _pVertexPositionsBuffer->release();
     _pVertexColorsBuffer->release();
     for ( int i = 0; i <  kMaxFramesInFlight; ++i )
     {
-        _pFrameData[i]->release();
+        _pInstanceDataBuffer[i]->release();
     }
+    _pIndexBuffer->release();
     _pPSO->release();
     return 0;
 }
