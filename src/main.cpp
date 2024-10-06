@@ -14,13 +14,18 @@
 #include <iostream>
 
 
+static constexpr size_t kInstanceRows = 1;
+static constexpr size_t kInstanceColumns = 1;
+static constexpr size_t kInstanceDepth = 1;
+static constexpr size_t kNumInstances = (kInstanceRows * kInstanceColumns * kInstanceDepth);
+static constexpr size_t kMaxFramesInFlight = 3;
+
+
 MTL::Device* device;
 MTL::RenderPipelineState* _pPSO;
 MTL::Buffer* _pVertexColorsBuffer;
 MTL::Library* _pShaderLibrary;
 MTL::Buffer* _pFrameData[3];
-static constexpr size_t kNumInstances = 32;
-static constexpr size_t kMaxFramesInFlight = 3;
 float _angle = 0.0f;
 int _frame = 0;
 dispatch_semaphore_t _semaphore;
@@ -29,6 +34,7 @@ MTL::Buffer* _pInstanceDataBuffer[kMaxFramesInFlight];
 MTL::Buffer* _pCameraDataBuffer[kMaxFramesInFlight];
 MTL::Buffer* _pIndexBuffer;
 MTL::Buffer* _pVertexDataBuffer;
+
 
 namespace math {
     constexpr simd::float3 add( const simd::float3& a, const simd::float3& b ) {
@@ -98,6 +104,9 @@ namespace math {
                            (float4){ 0, 0, 0, 1.0 });
     }
 
+    simd::float3x3 discardTranslation( const simd::float4x4& m ) {
+        return simd_matrix( m.columns[0].xyz, m.columns[1].xyz, m.columns[2].xyz );
+    }
 }
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
@@ -108,6 +117,12 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     }
 }
 
+struct VertexData
+{
+    simd::float3 position;
+    simd::float3 normal;
+};
+
 void buildShader() {
     using NS::StringEncoding::UTF8StringEncoding;
 
@@ -115,23 +130,31 @@ void buildShader() {
         #include <metal_stdlib>
         using namespace metal;
 
-        struct v2f {
+        struct v2f
+        {
             float4 position [[position]];
+            float3 normal;
             half3 color;
         };
 
-        struct VertexData {
+        struct VertexData
+        {
             float3 position;
+            float3 normal;
         };
 
-        struct InstanceData {
+        struct InstanceData
+        {
             float4x4 instanceTransform;
+            float3x3 instanceNormalTransform;
             float4 instanceColor;
         };
 
-        struct CameraData {
+        struct CameraData
+        {
             float4x4 perspectiveTransform;
             float4x4 worldTransform;
+            float3x3 worldNormalTransform;
         };
 
         v2f vertex vertexMain( device const VertexData* vertexData [[buffer(0)]],
@@ -141,16 +164,29 @@ void buildShader() {
                                uint instanceId [[instance_id]] )
         {
             v2f o;
-            float4 pos = float4( vertexData[ vertexId ].position, 1.0 );
+
+            const device VertexData& vd = vertexData[ vertexId ];
+            float4 pos = float4( vd.position, 1.0 );
             pos = instanceData[ instanceId ].instanceTransform * pos;
             pos = cameraData.perspectiveTransform * cameraData.worldTransform * pos;
             o.position = pos;
+
+            float3 normal = instanceData[ instanceId ].instanceNormalTransform * vd.normal;
+            normal = cameraData.worldNormalTransform * normal;
+            o.normal = normal;
+
             o.color = half3( instanceData[ instanceId ].instanceColor.rgb );
             return o;
         }
 
-        half4 fragment fragmentMain( v2f in [[stage_in]] ) {
-            return half4( in.color, 1.0 );
+        half4 fragment fragmentMain( v2f in [[stage_in]] )
+        {
+            // assume light coming from (front-top-right)
+            float3 l = normalize(float3( 1.0, 1.0, 0.8 ));
+            float3 n = normalize( in.normal );
+
+            float ndotl = saturate( dot( n, l ) );
+            return half4( in.color * 0.1 + in.color * ndotl, 1.0 );
         }
     )";
 
@@ -188,36 +224,46 @@ void buildBuffers() {
     using simd::float3;
     const float s = 0.5f;
 
-    float3 verts[] = {
-        { -s, -s, +s },
-        { +s, -s, +s },
-        { +s, +s, +s },
-        { -s, +s, +s },
+    shader_types::VertexData verts[] = {
+        //   Positions          Normals
+        { { -s, -s, +s }, { 0.f,  0.f,  1.f } },
+        { { +s, -s, +s }, { 0.f,  0.f,  1.f } },
+        { { +s, +s, +s }, { 0.f,  0.f,  1.f } },
+        { { -s, +s, +s }, { 0.f,  0.f,  1.f } },
 
-        { -s, -s, -s },
-        { -s, +s, -s },
-        { +s, +s, -s },
-        { +s, -s, -s }
+        { { +s, -s, +s }, { 1.f,  0.f,  0.f } },
+        { { +s, -s, -s }, { 1.f,  0.f,  0.f } },
+        { { +s, +s, -s }, { 1.f,  0.f,  0.f } },
+        { { +s, +s, +s }, { 1.f,  0.f,  0.f } },
+
+        { { +s, -s, -s }, { 0.f,  0.f, -1.f } },
+        { { -s, -s, -s }, { 0.f,  0.f, -1.f } },
+        { { -s, +s, -s }, { 0.f,  0.f, -1.f } },
+        { { +s, +s, -s }, { 0.f,  0.f, -1.f } },
+
+        { { -s, -s, -s }, { -1.f, 0.f,  0.f } },
+        { { -s, -s, +s }, { -1.f, 0.f,  0.f } },
+        { { -s, +s, +s }, { -1.f, 0.f,  0.f } },
+        { { -s, +s, -s }, { -1.f, 0.f,  0.f } },
+
+        { { -s, +s, +s }, { 0.f,  1.f,  0.f } },
+        { { +s, +s, +s }, { 0.f,  1.f,  0.f } },
+        { { +s, +s, -s }, { 0.f,  1.f,  0.f } },
+        { { -s, +s, -s }, { 0.f,  1.f,  0.f } },
+
+        { { -s, -s, -s }, { 0.f, -1.f,  0.f } },
+        { { +s, -s, -s }, { 0.f, -1.f,  0.f } },
+        { { +s, -s, +s }, { 0.f, -1.f,  0.f } },
+        { { -s, -s, +s }, { 0.f, -1.f,  0.f } },
     };
 
     uint16_t indices[] = {
-        0, 1, 2, /* front */
-        2, 3, 0,
-
-        1, 7, 6, /* right */
-        6, 2, 1,
-
-        7, 4, 5, /* back */
-        5, 6, 7,
-
-        4, 0, 3, /* left */
-        3, 5, 4,
-
-        3, 2, 6, /* top */
-        6, 5, 3,
-
-        4, 7, 1, /* bottom */
-        1, 0, 4
+         0,  1,  2,  2,  3,  0, /* front */
+         4,  5,  6,  6,  7,  4, /* right */
+         8,  9, 10, 10, 11,  8, /* back */
+        12, 13, 14, 14, 15, 12, /* left */
+        16, 17, 18, 18, 19, 16, /* top */
+        20, 21, 22, 22, 23, 20, /* bottom */
     };
 
     const size_t vertexDataSize = sizeof( verts );
@@ -329,37 +375,54 @@ int main() {
             dispatch_semaphore_signal( _semaphore );
         });
 
-        _angle += 0.01f;
+        _angle += 0.02f;
 
-        const float scl = 0.1f;
+        const float scl = 1.f;
         shader_types::InstanceData* pInstanceData = reinterpret_cast< shader_types::InstanceData *>( pInstanceDataBuffer->contents() );
 
-        float3 objectPosition = { 0.f, 0.f, -5.f };
+        float3 objectPosition = { 0.f, 0.f, -6.f };
 
         // Update instance positions:
 
         float4x4 rt = math::makeTranslate( objectPosition );
-        float4x4 rr = math::makeYRotate( -_angle );
+        float4x4 rr1 = math::makeYRotate( -_angle );
+        float4x4 rr0 = math::makeXRotate( _angle);
         float4x4 rtInv = math::makeTranslate( { -objectPosition.x, -objectPosition.y, -objectPosition.z } );
-        float4x4 fullObjectRot = rt * rr * rtInv;
+        float4x4 fullObjectRot = rt * rr1 * rr0 * rtInv;
 
-        for ( size_t i = 0; i < kNumInstances; ++i ) {
-            float iDivNumInstances = i / (float)kNumInstances;
-            float xoff = (iDivNumInstances * 2.0f - 1.0f) + (1.f/kNumInstances);
-            float yoff = sin( ( iDivNumInstances + _angle ) * 2.0f * M_PI);
+        size_t ix = 0;
+        size_t iy = 0;
+        size_t iz = 0;
+        for ( size_t i = 0; i < kNumInstances; ++i )
+        {
+            if ( ix == kInstanceRows )
+            {
+                ix = 0;
+                iy += 1;
+            }
+            if ( iy == kInstanceRows )
+            {
+                iy = 0;
+                iz += 1;
+            }
 
-            // Use the tiny math library to apply a 3D transformation to the instance.
             float4x4 scale = math::makeScale( (float3){ scl, scl, scl } );
-            float4x4 zrot = math::makeZRotate( _angle );
-            float4x4 yrot = math::makeYRotate( _angle );
-            float4x4 translate = math::makeTranslate( math::add( objectPosition, { xoff, yoff, 0.f } ) );
 
-            pInstanceData[ i ].instanceTransform = fullObjectRot * translate * yrot * zrot * scale;
+            float x = ((float)ix - (float)kInstanceRows/2.f) * (scl);
+            float y = ((float)iy - (float)kInstanceColumns/2.f) * (scl);
+            float z = ((float)iz - (float)kInstanceDepth/2.f) * (scl);
+            float4x4 translate = math::makeTranslate( math::add( objectPosition, { x, y, z } ) );
 
+            pInstanceData[ i ].instanceTransform = fullObjectRot * translate * scale;
+            pInstanceData[ i ].instanceNormalTransform = math::discardTranslation( pInstanceData[ i ].instanceTransform );
+
+            float iDivNumInstances = i / (float)kNumInstances;
             float r = iDivNumInstances;
             float g = 1.0f - r;
             float b = sinf( M_PI * 2.0f * iDivNumInstances );
             pInstanceData[ i ].instanceColor = (float4){ r, g, b, 1.0f };
+
+            ix += 1;
         }
         pInstanceDataBuffer->didModifyRange( NS::Range::Make( 0, pInstanceDataBuffer->length() ) );
 
@@ -369,6 +432,7 @@ int main() {
         shader_types::CameraData* pCameraData = reinterpret_cast< shader_types::CameraData *>( pCameraDataBuffer->contents() );
         pCameraData->perspectiveTransform = math::makePerspective( 45.f * M_PI / 180.f, 1.f, 0.03f, 500.0f ) ;
         pCameraData->worldTransform = math::makeIdentity();
+        pCameraData->worldNormalTransform = math::discardTranslation( pCameraData->worldTransform );
         pCameraDataBuffer->didModifyRange( NS::Range::Make( 0, sizeof( shader_types::CameraData ) ) );
 
 
@@ -419,4 +483,4 @@ int main() {
     _pIndexBuffer->release();
     _pPSO->release();
     return 0;
-}
+}   
