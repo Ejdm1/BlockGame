@@ -1,8 +1,6 @@
 build/
 .cache/
-lukasino_rep/
-dependencies/glfw/
+lukas/
 compile_commands.json
 .DS_Store
 bru.cpp
-glm/
