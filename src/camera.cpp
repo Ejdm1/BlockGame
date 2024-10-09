@@ -1,13 +1,15 @@
-#include "math.cpp"
+#include "math.hpp"
 
 #include "camera.hpp"
 
-void Camera::on_mouse_move(GLFWwindow* glfwWindow, double x, double y, glm::vec2 window_size) {
-    x = window_size.x/2 - x;
-    y = window_size.y/2 - y;
+#include <iostream>
+
+void Camera::on_mouse_move(GLFWwindow* glfwWindow, glm::vec2 cursor_pos, glm::vec2 window_size) {
+    cursor_pos.x = window_size.x/2 - cursor_pos.x;
+    cursor_pos.y = window_size.y/2 - cursor_pos.y;
     if(glfwGetWindowAttrib(glfwWindow, GLFW_FOCUSED)) {
-        rotation.x += static_cast<float>(x) * mouse_sens * 0.0001f * fov;
-        rotation.y += static_cast<float>(y) * mouse_sens * 0.0001f * fov;
+        rotation.x += cursor_pos.x * mouse_sens * 0.0001f * fov;
+        rotation.y += cursor_pos.y * mouse_sens * 0.0001f * fov;
     }
 
     constexpr auto MAX_ROT = 1.56825555556f;
@@ -18,6 +20,13 @@ void Camera::on_mouse_move(GLFWwindow* glfwWindow, double x, double y, glm::vec2
 void Camera::update(MTL::Buffer* pCameraDataBuffer, GLFWwindow* glfwWindow, glm::vec2 window_size , float delta_time, Window* window) {
     pCameraData = reinterpret_cast< CameraData *>( pCameraDataBuffer->contents() );
     pCameraData->perspectiveTransform = math::makePerspective( fov * M_PI / 180.f, 1.f, 0.03f, 1000.0f ) ;
+
+    glfwGetCursorPos(window->glfwWindow, &x, &y);
+    mouse_pos_old = mouse_pos_new; mouse_pos_new.x = static_cast<float>(x); mouse_pos_new.y = static_cast<float>(y);
+
+    if (mouse_pos_old != mouse_pos_new) {
+        on_mouse_move(window->glfwWindow, mouse_pos_new, window->window_size);
+    }
 
     if (glfwGetWindowAttrib(glfwWindow, GLFW_FOCUSED)) {
         window->cursor_setup(true, glfwWindow, window_size);

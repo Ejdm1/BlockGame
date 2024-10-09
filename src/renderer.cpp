@@ -3,7 +3,7 @@
 #include "context.hpp"
 #include "window.hpp"
 
-#include "math.cpp"
+#include "math.hpp"
 
 #include <iostream>
 
@@ -257,6 +257,8 @@ void Renderer::run() {
     Clock::time_point start = Clock::now(), prev_time = start;
     delta_time = 1.0f;
 
+    std::cout << "Rendering" << std::endl;
+
     while (!glfwWindowShouldClose(window->glfwWindow)) {
         glfwPollEvents();
 
@@ -341,7 +343,7 @@ void Renderer::run() {
         auto now = Clock::now();
         delta_time = std::chrono::duration<float>(now - prev_time).count();
         prev_time = now;
-        std::cout << "\r" << (1.0f / delta_time) << std::flush;
+        //std::cout << "\r" << (1.0f / delta_time) << std::flush;
     }
 
     context->commandQueue->release();

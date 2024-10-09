@@ -1,18 +1,12 @@
 #pragma once
 
-#define NS_PRIVATE_IMPLEMENTATION
-#define CA_PRIVATE_IMPLEMENTATION
-#define MTL_PRIVATE_IMPLEMENTATION
-
-#define STB_IMAGE_IMPLEMENTATION
-
 #include <Metal/Metal.hpp>
 #include <MetalKit/MetalKit.hpp>
 
 #include <simd/simd.h>
 #include <glm/glm.hpp>
 
-#include "window.cpp"
+#include "window.hpp"
 
 #include "backend/glfw_adapter.h"
 
@@ -23,8 +17,9 @@ struct CameraData {
 };
 
 struct Camera {
+    void mouse_setup(GLFWwindow* window);
     void update(MTL::Buffer* pCameraDataBuffer, GLFWwindow* glfwWindow, glm::vec2 window_size, float delta_time, Window* window);
-    void on_mouse_move(GLFWwindow* window, double x, double y, glm::vec2 window_size);
+    void on_mouse_move(GLFWwindow* window, glm::vec2 cursor_pos, glm::vec2 window_size);
     CameraData* pCameraData;
 
     glm::vec3 position = {0.f, 0.f, 0.f};
@@ -35,5 +30,9 @@ struct Camera {
     glm::mat4 vrot_mat{1.f};
     float delta_time = 0;
     glm::mat4 view_mat;
+    glm::vec2 mouse_pos_new = {0.f,0.f};
+    glm::vec2 mouse_pos_old = {0.f,0.f};
+    double x;
+    double y;
 };
 
