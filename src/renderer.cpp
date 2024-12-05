@@ -6,76 +6,52 @@
 #include "math.hpp"
 
 #include <iostream>
+#include <bitset>
+#include <fstream>
+
+
+
+float MoveBits(int bitAmount, int bitsRight, int data) {
+    int shiftedRight = data >> bitsRight;
+    int bitMask = (1 << bitAmount) -1;
+    int temp = shiftedRight & bitMask;
+    if (temp > 15) {
+        temp = -temp + 16;
+    }
+    return static_cast<float>(temp);
+}
+
+simd::float3 GetPos(int data) {
+    return simd::float3{MoveBits(5, 0, data), MoveBits(5, 5, data), MoveBits(5, 10, data)};
+}
+
+int GetSide(int data) {
+    return MoveBits(3, 15, data);
+}
+
+int GetBlockId(int data) {
+    return MoveBits(14, 18, data);
+}
 
 void Renderer::build_shaders(MTL::Device* device) {
     using NS::StringEncoding::UTF8StringEncoding;
 
-    const char* shaderSrc = R"(
-        #include <metal_stdlib>
-        using namespace metal;
+    std::string tempShader;
+    std::string shader = "";
 
-        struct v2f {
-            float4 position [[position]];
-            float3 normal;
-            half3 color;
-            float2 texcoord;
-        };
+    std::ifstream myShaderFile;
+    myShaderFile.open("/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/shaders.metal");
 
-        struct VertexData {
-            float3 position;
-            float3 normal;
-            float2 texcoord;
-        };
+    if (!myShaderFile.is_open()) {
+        std::cout << "Error: Couldnt be opened" << std::endl;
+    }
 
-        struct InstanceData {
-            float4x4 instanceTransform;
-            float3x3 instanceNormalTransform;
-            float4 instanceColor;
-        };
+    while (getline (myShaderFile, tempShader)) {
+        shader =  shader + tempShader + "\n";
+    }
+    myShaderFile.close();
 
-        struct CameraData {
-            float4x4 perspectiveTransform;
-            float4x4 worldTransform;
-            float3x3 worldNormalTransform;
-        };
-
-        v2f vertex vertexMain( device const VertexData* vertexData [[buffer(0)]],
-                               device const InstanceData* instanceData [[buffer(1)]],
-                               device const CameraData& cameraData [[buffer(2)]],
-                               uint vertexId [[vertex_id]],
-                               uint instanceId [[instance_id]] ) {
-            v2f o;
-
-            const device VertexData& vd = vertexData[ vertexId ];
-            float4 pos = float4( vd.position, 1.0 );
-            pos = instanceData[ instanceId ].instanceTransform * pos;
-            pos = cameraData.perspectiveTransform * cameraData.worldTransform * pos;
-            o.position = pos;
-
-            float3 normal = instanceData[ instanceId ].instanceNormalTransform * vd.normal;
-            normal = cameraData.worldNormalTransform * normal;
-            o.normal = normal;
-
-            o.texcoord = vd.texcoord.xy;
-
-            o.color = half3( instanceData[ instanceId ].instanceColor.rgb );
-            return o;
-        }
-
-        half4 fragment fragmentMain( v2f in [[stage_in]], texture2d< half, access::sample > tex [[texture(0)]] ) {
-            constexpr sampler s( address::repeat, filter::linear );
-            half3 texel = tex.sample( s, in.texcoord ).rgb;
-
-            // assume light coming from (front-top-right)
-            float3 l = normalize(float3( 1.0, 1.0, 1.0 ));
-            float3 n = normalize( in.normal );
-
-            half ndotl = half( saturate( dot( n, l ) ) );
-
-            half3 illum = (in.color * texel * 0.1) + (in.color * texel * ndotl);
-            return half4( illum, 1.0 );
-        }
-    )";
+    const char* shaderSrc = shader.c_str();
 
     NS::Error* pError = nullptr;
     MTL::Library* pLibrary = device->newLibrary( NS::String::string(shaderSrc, UTF8StringEncoding), nullptr, &pError );
@@ -85,8 +61,8 @@ void Renderer::build_shaders(MTL::Device* device) {
     }
 
     MTL::Function* pVertexFn = pLibrary->newFunction( NS::String::string("vertexMain", UTF8StringEncoding) );
-    MTL::Function* pFragFn = pLibrary->newFunction( NS::String::string("fragmentMain", UTF8StringEncoding) );
-        
+    pFragFn = pLibrary->newFunction( NS::String::string("fragmentMain", UTF8StringEncoding) );
+
     MTL::RenderPipelineDescriptor* pDesc = MTL::RenderPipelineDescriptor::alloc()->init();
     pDesc->setVertexFunction( pVertexFn );
     pDesc->setFragmentFunction( pFragFn );
@@ -112,8 +88,18 @@ void Renderer::build_textures(MTL::Device* device)
     int size_x = 0;
     int size_y = 0;
     int num_channels = 0;
-    stbi_uc* data = stbi_load("./src/Textures/Grass_block.png", &size_x, &size_y, &num_channels, 4);
-    if(data == nullptr) {
+    stbi_uc* grass_top_texture = stbi_load("/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/Textures/Grass/Grass_top.png", &size_x, &size_y, &num_channels, 4);
+    if(grass_top_texture == nullptr) {
+        throw std::runtime_error("Textures couldn't be found");
+    }
+
+    stbi_uc* grass_side_texture = stbi_load("/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/Textures/Grass/Grass_side.png", &size_x, &size_y, &num_channels, 4);
+    if(grass_side_texture == nullptr) {
+        throw std::runtime_error("Textures couldn't be found");
+    }
+
+    stbi_uc* grass_bottom_texture = stbi_load("/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/Textures/Grass/Grass_bottom.png", &size_x, &size_y, &num_channels, 4);
+    if(grass_bottom_texture == nullptr) {
         throw std::runtime_error("Textures couldn't be found");
     }
 
@@ -125,11 +111,17 @@ void Renderer::build_textures(MTL::Device* device)
     pTextureDesc->setStorageMode( MTL::StorageModeManaged );
     pTextureDesc->setUsage( MTL::ResourceUsageSample | MTL::ResourceUsageRead );
 
-    MTL::Texture *pTexture = device->newTexture( pTextureDesc );
-    _pTexture = pTexture;
+    _pTexture[0] = device->newTexture( pTextureDesc );
+    _pTexture[1] = device->newTexture( pTextureDesc );
+    _pTexture[2] = device->newTexture( pTextureDesc );
 
-    _pTexture->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, data, size_x * 4 );
-    stbi_image_free(data);
+    _pTexture[0]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, grass_top_texture, size_x * 4 );
+    _pTexture[1]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, grass_side_texture, size_x * 4 );
+    _pTexture[2]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, grass_bottom_texture, size_x * 4 );
+
+    stbi_image_free(grass_top_texture);
+    stbi_image_free(grass_side_texture);
+    stbi_image_free(grass_bottom_texture);
     pTextureDesc->release();
 
     std::cout << "Textures built" << std::endl;
@@ -184,18 +176,32 @@ void Renderer::build_buffers(MTL::Device* device) {
         20, 21, 22, 22, 23, 20, /* bottom */
     };
 
+    BlockData* blockData = new BlockData;
+
+    
+    int temp = blockData->sideFront;
+    std::cout << "pos: " <<GetPos(temp)[0] << ", " << GetPos(temp)[1] << ", " << GetPos(temp)[2] << " side: " << GetSide(temp) << " blockID: " << GetBlockId(temp) << std::endl;
+    std::cout << "binary: " << std::bitset<32>(temp) << std::endl;
+    std::cout << GetSide(temp) << std::endl;
+
+    const size_t blockDataSize = sizeof( &blockData );
+
     const size_t vertexDataSize = sizeof( verts );
     const size_t indexDataSize = sizeof( indices );
 
+    MTL::Buffer* pBlockBuffer = device->newBuffer( blockDataSize, MTL::ResourceStorageModeManaged );
     MTL::Buffer* pVertexBuffer = device->newBuffer( vertexDataSize, MTL::ResourceStorageModeManaged );
     MTL::Buffer* pIndexBuffer = device->newBuffer( indexDataSize, MTL::ResourceStorageModeManaged );
 
+    _pBlockDataBuffer = pBlockBuffer;
     _pVertexDataBuffer = pVertexBuffer;
     _pIndexBuffer = pIndexBuffer;
 
+    memcpy( _pBlockDataBuffer->contents(), verts, blockDataSize );
     memcpy( _pVertexDataBuffer->contents(), verts, vertexDataSize );
     memcpy( _pIndexBuffer->contents(), indices, indexDataSize );
 
+    _pBlockDataBuffer->didModifyRange(NS::Range::Make(0, _pBlockDataBuffer->length() ) );
     _pVertexDataBuffer->didModifyRange( NS::Range::Make( 0, _pVertexDataBuffer->length() ) );
     _pIndexBuffer->didModifyRange( NS::Range::Make( 0, _pIndexBuffer->length() ) );
 
@@ -319,11 +325,29 @@ void Renderer::run() {
         pEnc->setRenderPipelineState( _pPSO );
         pEnc->setDepthStencilState( _pDepthStencilState );
 
-        pEnc->setVertexBuffer( _pVertexDataBuffer, /* offset */ 0, /* index */ 0 );
-        pEnc->setVertexBuffer( pInstanceDataBuffer, /* offset */ 0, /* index */ 1 );
-        pEnc->setVertexBuffer( pCameraDataBuffer, /* offset */ 0, /* index */ 2 );
+        pEnc->setVertexBuffer( _pVertexDataBuffer, 0, 0 );
+        pEnc->setVertexBuffer( pInstanceDataBuffer, 0, 1 );
+        pEnc->setVertexBuffer( pCameraDataBuffer, 0, 2 );
+        pEnc->setVertexBuffer( _pBlockDataBuffer, 0, 3);
 
-        pEnc->setFragmentTexture( _pTexture, /* index */ 0 );
+        MTL::ArgumentEncoder* argEncoder = pFragFn->newArgumentEncoder(0);
+
+        size_t argBufferLength = argEncoder->encodedLength();
+        MTL::Buffer* argumentBuffer = context->device->newBuffer(argBufferLength, MTL::ResourceStorageModeShared);
+
+        argEncoder->setArgumentBuffer(argumentBuffer, 0);
+
+        argEncoder->setTexture( _pTexture[0], 0);
+        argEncoder->setTexture( _pTexture[1], 1);
+        argEncoder->setTexture( _pTexture[2], 2);
+
+        pEnc->setFragmentBuffer(argumentBuffer, 0, 0);
+
+
+
+
+
+        
 
         pEnc->setCullMode( MTL::CullModeBack );
         pEnc->setFrontFacingWinding( MTL::Winding::WindingCounterClockwise );
@@ -345,7 +369,6 @@ void Renderer::run() {
         prev_time = now;
         //std::cout << "\r" << (1.0f / delta_time) << std::flush;
     }
-
     context->commandQueue->release();
     context->window->release();
     context->metalLayer->release();
@@ -357,6 +380,5 @@ void Renderer::run() {
         _pInstanceDataBuffer[i]->release();
     }
     _pIndexBuffer->release();
-    _pTexture->release();
     _pPSO->release();
 }

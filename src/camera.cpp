@@ -2,8 +2,6 @@
 
 #include "camera.hpp"
 
-#include <iostream>
-
 void Camera::on_mouse_move(GLFWwindow* glfwWindow, glm::vec2 cursor_pos, glm::vec2 window_size) {
     cursor_pos.x = window_size.x/2 - cursor_pos.x;
     cursor_pos.y = window_size.y/2 - cursor_pos.y;
@@ -19,7 +17,7 @@ void Camera::on_mouse_move(GLFWwindow* glfwWindow, glm::vec2 cursor_pos, glm::ve
 
 void Camera::update(MTL::Buffer* pCameraDataBuffer, GLFWwindow* glfwWindow, glm::vec2 window_size , float delta_time, Window* window) {
     pCameraData = reinterpret_cast< CameraData *>( pCameraDataBuffer->contents() );
-    pCameraData->perspectiveTransform = math::makePerspective( fov * M_PI / 180.f, 1.f, 0.03f, 1000.0f ) ;
+    pCameraData->perspectiveTransform = math::makePerspective( fov * M_PI / 180.f, window->aspect_ratio, 0.03f, 1000.0f ) ;
 
     glfwGetCursorPos(window->glfwWindow, &x, &y);
     mouse_pos_old = mouse_pos_new; mouse_pos_new.x = static_cast<float>(x); mouse_pos_new.y = static_cast<float>(y);

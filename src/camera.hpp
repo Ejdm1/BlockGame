@@ -13,7 +13,7 @@
 struct CameraData {
     simd::float4x4 perspectiveTransform;
     glm::mat4 worldTransform;
-    simd::float3x3 worldNormalTransform;
+    glm::mat3 worldNormalTransform;
 };
 
 struct Camera {

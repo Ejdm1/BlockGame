@@ -43,8 +43,8 @@ namespace math {
         return *reinterpret_cast<simd::float4x4*>(&mp);
     }
 
-    inline simd::float3x3 discardTranslation( const glm::mat4& m ) {
+    inline glm::mat3 discardTranslation( const glm::mat4& m ) {
         glm::mat3 mp = glm::mat3(glm::mat4(m));
-        return *reinterpret_cast<simd::float3x3*>(&mp);
+        return mp;
     }
 }

@@ -4,6 +4,7 @@ void Window::create_window() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindow = glfwCreateWindow(window_size.x, window_size.y, "Heavy", nullptr, nullptr);
+    aspect_ratio = window_size.x / window_size.y;
 }
 
 void Window::cursor_setup(bool visible, GLFWwindow* glfwWindow, glm::vec2 window_size) {
