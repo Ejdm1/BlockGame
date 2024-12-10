@@ -18,7 +18,9 @@ add_executable(test src/backend/glfw_adapter.mm
                     dependencies/imgui/imstb_textedit.h
                     dependencies/imgui/imstb_truetype.h
                     dependencies/imgui/backends/imgui_impl_metal.h
-                    dependencies/imgui/backends/imgui_impl_metal.mm)
+                    dependencies/imgui/backends/imgui_impl_metal.mm
+                    dependencies/imgui/backends/imgui_impl_glfw.h
+                    dependencies/imgui/backends/imgui_impl_glfw.cpp)
 
 
 target_include_directories(test PRIVATE dependencies)

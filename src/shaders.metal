@@ -15,24 +15,18 @@ struct VertexData {
     float2 texcoord;
 };
 
-struct InstanceData {
-    float4x4 instanceTransform;
-    float3x3 instanceNormalTransform;
-    float4 instanceColor;
-};
-
 struct CameraData {
     float4x4 perspectiveTransform;
     float4x4 worldTransform;
     float3x3 worldNormalTransform;
 };
 
-struct Textures {
-    texture2d<half> textures_array[128];
+struct BlockData {
+    int blockDataArr[6];
 };
 
-struct BlockData {
-    int top, bot, sideFront, sideBack, sideRight, sideLeft;
+struct Textures {
+    texture2d<half> textures_array[128];
 };
 
 float MoveBits(int bitAmount, int bitsRight, int data) {
@@ -45,8 +39,8 @@ float MoveBits(int bitAmount, int bitsRight, int data) {
     return static_cast<float>(temp);
 }
 
-simd::float3 GetPos(int data) {
-    return simd::float3{MoveBits(5, 0, data), MoveBits(5, 5, data), MoveBits(5, 10, data)};
+float3 GetPos(int data) {
+    return float3{MoveBits(5, 0, data), MoveBits(5, 5, data), MoveBits(5, 10, data)};
 }
 
 int GetSide(int data) {
@@ -58,44 +52,43 @@ int GetBlockId(int data) {
 }
 
 v2f vertex vertexMain( device const VertexData* vertexData [[buffer(0)]],
-                        device const InstanceData* instanceData [[buffer(1)]],
-                        device const CameraData& cameraData [[buffer(2)]],
-                        device const BlockData* blockData [[buffer(3)]],
+                        device const CameraData& cameraData [[buffer(1)]],
+                        constant BlockData &blockData [[buffer(2)]],
                         uint vertexId [[vertex_id]],
                         uint instanceId [[instance_id]] ) {
+    
     v2f o;
+    int block_sideID = vertexId / 4;
+    int block_posID = vertexId - block_sideID * 4;
+
+    // float3 side_middle = GetPos(blockDataArr[block_sideID]);
 
     const device VertexData& vd = vertexData[ vertexId ];
     float4 pos = float4( vd.position, 1.0 );
-    pos = instanceData[ instanceId ].instanceTransform * pos;
-    pos = cameraData.perspectiveTransform * cameraData.worldTransform * pos;
-    o.position = pos;
+    o.position = cameraData.perspectiveTransform * cameraData.worldTransform * pos;
 
-    float3 normal = instanceData[ instanceId ].instanceNormalTransform * vd.normal;
-    normal = cameraData.worldNormalTransform * normal;
-    o.normal = normal;
+    int textureID = GetSide(blockData.blockDataArr[block_sideID]);
 
     o.texcoord = vd.texcoord.xy;
+    switch (textureID) {
+        case 0 || 1 || 2 || 3:
+            o.side = 1;
+            break;
+        case 4:
+            o.side = 0;
+            break;
+        case 5:
+            o.side = 2;
+            break;
+    }
 
-    o.color = half3( instanceData[ instanceId ].instanceColor.rgb );
-
-    BlockData bd = blockData[ 0 ];
-
-    o.side = GetSide(bd.sideFront);
     return o;
 }
 
 half4 fragment fragmentMain( v2f in [[stage_in]], constant Textures &textures [[buffer(0)]] ) {
-    constexpr sampler s( address::repeat, filter::linear );
+    constexpr sampler s( address::repeat, filter::nearest );
 
     half3 texel = textures.textures_array[in.side].sample( s, in.texcoord ).rgb;
 
-    // assume light coming from (front-top-right)
-    float3 l = normalize(float3( 1.0, 1.0, 1.0 ));
-    float3 n = normalize( in.normal );
-
-    half ndotl = half( saturate( dot( n, l ) ) );
-
-    half3 illum = (in.color * texel * 0.1) + (in.color * texel * ndotl);
-    return half4( illum, 1.0 );
+    return half4( texel, 1.0 );
 }

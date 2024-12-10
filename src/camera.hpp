@@ -21,7 +21,6 @@ struct Camera {
     void update(MTL::Buffer* pCameraDataBuffer, GLFWwindow* glfwWindow, glm::vec2 window_size, float delta_time, Window* window);
     void on_mouse_move(GLFWwindow* window, glm::vec2 cursor_pos, glm::vec2 window_size);
     CameraData* pCameraData;
-
     glm::vec3 position = {0.f, 0.f, 0.f};
     glm::vec2 rotation = {0.f,0.f};
     float mouse_sens = 0.5f;
@@ -34,5 +33,6 @@ struct Camera {
     glm::vec2 mouse_pos_old = {0.f,0.f};
     double x;
     double y;
+    bool esc_pressed = false;
 };
 

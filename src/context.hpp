@@ -9,7 +9,7 @@ struct Context {
     void setup(GLFWwindow* glfw_window);
     MTL::Device* device;
     CA::MetalLayer* metalLayer;
-    NS::Window* window;
-    CA::MetalDrawable* metalDrawable;
+    NS::Window* ns_window;
+    CA::MetalDrawable* pMetalDrawable;
     MTL::CommandQueue* commandQueue;
 };

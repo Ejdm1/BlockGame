@@ -13,7 +13,12 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <iostream>
+#include "../dependencies/imgui/imgui.h"
+#include "../dependencies/imgui/backends/imgui_impl_glfw.h"
+
+#define IMGUI_IMPL_METAL_CPP
+
+#include "../dependencies/imgui/backends/imgui_impl_metal.h"
 
 struct Renderer {
     void build_shaders(MTL::Device* device);
@@ -22,37 +27,30 @@ struct Renderer {
     void build_spencil(MTL::Device* device);
     void build_textures(MTL::Device* device);
     void run();
-    static constexpr size_t kInstanceRows = 1;
-    static constexpr size_t kInstanceColumns = 1;
-    static constexpr size_t kInstanceDepth = 1;
-    static constexpr size_t kNumInstances = (kInstanceRows * kInstanceColumns * kInstanceDepth);
     static constexpr size_t kMaxFramesInFlight = 3;
-    MTL::RenderPipelineState* _pPSO;
+    MTL::RenderPipelineState* pRenderPipelineState;
     MTL::Buffer* _pVertexColorsBuffer;
     MTL::Library* _pShaderLibrary;
     MTL::Buffer* _pFrameData[3];
     int _frame = 0;
     dispatch_semaphore_t _semaphore;
-    MTL::DepthStencilState* _pDepthStencilState;
-    MTL::Buffer* _pInstanceDataBuffer[kMaxFramesInFlight];
+    MTL::DepthStencilState* pDepthStencilDescriptor;
     MTL::Buffer* _pCameraDataBuffer[kMaxFramesInFlight];
     MTL::Buffer* _pIndexBuffer;
     MTL::Buffer* _pVertexDataBuffer;
     MTL::Buffer* _pBlockDataBuffer;
-    MTL::Buffer* _pBlockSideBuffer;
-    MTL::Texture* _pTexture[10];
-    MTL::Function* pFragFn;
+    MTL::Texture* pTextureArr[128];
+    MTL::Function* pFragmentFunction;
+    MTL::Function* pVertexFunction;
     float delta_time = 0.f;
+    MTL::RenderCommandEncoder* pCommandEncoder;
+
+    bool* p_open;
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration;
 };
 
 struct FrameData {
     float angle;
-};
-
-struct InstanceData {
-    simd::float4x4 instanceTransform;
-    glm::mat3 instanceNormalTransform;
-    simd::float4 instanceColor;
 };
 
 struct VertexData {
@@ -65,12 +63,6 @@ enum struct BlockID : int {
     grass_top,
     grass_side,
     grass_bottom
-};
-
-enum struct SideID : int {
-    Top,
-    Side,
-    bot
 };
 
 inline int blockFace(const glm::vec3& pos, int side, int block_id) {
@@ -108,10 +100,5 @@ inline int blockFace(const glm::vec3& pos, int side, int block_id) {
 }
 
 struct BlockData {
-    int bot = blockFace(glm::vec3 {0,-1,0}, 2, 0);
-    int top = blockFace(glm::vec3 {0,1,0}, 0, 0);
-    int sideFront = blockFace(glm::vec3 {0,0,1}, 1, 0);
-    int sideBack = blockFace(glm::vec3 {0,0,-1}, 1, 0);
-    int sideRight = blockFace(glm::vec3 {-1,0,0}, 1, 0);
-    int sideLeft = blockFace(glm::vec3 {1,0,0}, 1, 0);
+    int sideFront = blockFace(glm::vec3 {0,0,1}, 0, 0),sideRight = blockFace(glm::vec3 {-1,0,0}, 1, 0),sideBack = blockFace(glm::vec3 {0,0,-1}, 2, 0),sideLeft = blockFace(glm::vec3 {1,0,0}, 3, 0),top = blockFace(glm::vec3 {0,1,0}, 4, 0),bot = blockFace(glm::vec3 {0,-1,0}, 5, 0);
 };
