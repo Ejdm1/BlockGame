@@ -38,7 +38,7 @@ void Renderer::build_shaders(MTL::Device* device) {
     std::string shaderStr = "";
 
     std::ifstream shadeingFile;
-    shadeingFile.open("/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/shaders.metal");
+    shadeingFile.open("./src/shaders.metal");
 
     if (!shadeingFile.is_open()) {
         std::cout << "Error: Couldnt be opened" << std::endl;
@@ -86,17 +86,17 @@ void Renderer::build_textures(MTL::Device* device)
     int size_x = 0;
     int size_y = 0;
     int num_channels = 0;
-    stbi_uc* grass_top_texture = stbi_load("/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/Textures/Grass/Grass_top.png", &size_x, &size_y, &num_channels, 4);
+    stbi_uc* grass_top_texture = stbi_load("./src/Textures/Grass/Grass_top.png", &size_x, &size_y, &num_channels, 4);
     if(grass_top_texture == nullptr) {
         throw std::runtime_error("Textures couldn't be found");
     }
 
-    stbi_uc* grass_side_texture = stbi_load("/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/Textures/Grass/Grass_side.png", &size_x, &size_y, &num_channels, 4);
+    stbi_uc* grass_side_texture = stbi_load("./src/Textures/Grass/Grass_side.png", &size_x, &size_y, &num_channels, 4);
     if(grass_side_texture == nullptr) {
         throw std::runtime_error("Textures couldn't be found");
     }
 
-    stbi_uc* grass_bottom_texture = stbi_load("/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/Textures/Grass/Grass_bottom.png", &size_x, &size_y, &num_channels, 4);
+    stbi_uc* grass_bottom_texture = stbi_load("./src/Textures/Grass/Grass_bottom.png", &size_x, &size_y, &num_channels, 4);
     if(grass_bottom_texture == nullptr) {
         throw std::runtime_error("Textures couldn't be found");
     }

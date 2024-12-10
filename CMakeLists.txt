@@ -24,6 +24,7 @@ add_executable(test src/backend/glfw_adapter.mm
 
 
 target_include_directories(test PRIVATE dependencies)
+target_include_directories(test PRIVATE src)
 
 add_subdirectory(dependencies/glfw)
 add_subdirectory(dependencies/glm)
