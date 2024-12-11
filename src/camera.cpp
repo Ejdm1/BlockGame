@@ -71,6 +71,6 @@ void Camera::update(MTL::Buffer* pCameraDataBuffer, GLFWwindow* glfwWindow, glm:
                 esc_pressed = false; 
             }
         }
-
+        
     view_mat = glm::lookAt(position, position + forward_direction, up_direction);
 }

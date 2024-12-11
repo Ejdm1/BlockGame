@@ -8,6 +8,7 @@
 #include <iostream>
 #include <bitset>
 #include <fstream>
+#include <string>
 
 float MoveBits(int bitAmount, int bitsRight, int data) {
     int shiftedRight = data >> bitsRight;
@@ -86,42 +87,43 @@ void Renderer::build_textures(MTL::Device* device)
     int size_x = 0;
     int size_y = 0;
     int num_channels = 0;
-    stbi_uc* grass_top_texture = stbi_load("./src/Textures/Grass/Grass_top.png", &size_x, &size_y, &num_channels, 4);
-    if(grass_top_texture == nullptr) {
-        throw std::runtime_error("Textures couldn't be found");
-    }
-
-    stbi_uc* grass_side_texture = stbi_load("./src/Textures/Grass/Grass_side.png", &size_x, &size_y, &num_channels, 4);
-    if(grass_side_texture == nullptr) {
-        throw std::runtime_error("Textures couldn't be found");
-    }
-
-    stbi_uc* grass_bottom_texture = stbi_load("./src/Textures/Grass/Grass_bottom.png", &size_x, &size_y, &num_channels, 4);
-    if(grass_bottom_texture == nullptr) {
-        throw std::runtime_error("Textures couldn't be found");
-    }
-
+    std::vector<stbi_uc*> textureArr;
     MTL::TextureDescriptor* pTextureDescriptor = MTL::TextureDescriptor::alloc()->init();
-    pTextureDescriptor->setWidth( static_cast<NS::UInteger>(size_x) );
-    pTextureDescriptor->setHeight( static_cast<NS::UInteger>(size_y) );
-    pTextureDescriptor->setPixelFormat( MTL::PixelFormatRGBA8Unorm );
-    pTextureDescriptor->setTextureType( MTL::TextureType2D );
-    pTextureDescriptor->setStorageMode( MTL::StorageModeManaged );
-    pTextureDescriptor->setUsage( MTL::ResourceUsageSample | MTL::ResourceUsageRead );
 
-    pTextureArr[0] = device->newTexture( pTextureDescriptor );
-    pTextureArr[1] = device->newTexture( pTextureDescriptor );
-    pTextureArr[2] = device->newTexture( pTextureDescriptor );
+    for (int i = 0; i < texture_names.size(); i++) {
+        std::string textureFileType = ".png";
+        std::string texturePath = "./src/Textures/";
+        std::string textureName = texture_names[i];
+        std::string textureFullName = texturePath + textureName + textureFileType;
+        const char* constTexturePath = textureFullName.c_str();
+        stbi_uc* texture = stbi_load(constTexturePath, &size_x, &size_y, &num_channels, 4);
+        int spaces = 32 - textureName.length();
+        if(texture != nullptr) {
+            
+            for (int k = 0; k < spaces; k++) {
+                textureName += "-";
+            }
+            std::cout << textureName << "> Found" << std::endl;
 
-    pTextureArr[0]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, grass_top_texture, size_x * 4 );
-    pTextureArr[1]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, grass_side_texture, size_x * 4 );
-    pTextureArr[2]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, grass_bottom_texture, size_x * 4 );
+            pTextureDescriptor->setWidth( static_cast<NS::UInteger>(size_x) );
+            pTextureDescriptor->setHeight( static_cast<NS::UInteger>(size_y) );
+            pTextureDescriptor->setPixelFormat( MTL::PixelFormatRGBA8Unorm );
+            pTextureDescriptor->setTextureType( MTL::TextureType2D );
+            pTextureDescriptor->setStorageMode( MTL::StorageModeManaged );
+            pTextureDescriptor->setUsage( MTL::ResourceUsageSample | MTL::ResourceUsageRead );
 
-    stbi_image_free(grass_top_texture);
-    stbi_image_free(grass_side_texture);
-    stbi_image_free(grass_bottom_texture);
+            pTextureArr[i] = device->newTexture( pTextureDescriptor );
+            pTextureArr[i]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, texture, size_x * 4 );
+            stbi_image_free(texture);
+        }
+        else {
+            for (int k = 0; k < spaces; k++) {
+                textureName += "-";
+            }
+            std::cout << textureName << "> Not found" << std::endl;
+        }
+    }
     pTextureDescriptor->release();
-
     std::cout << "Textures built" << std::endl;
 }
 
@@ -129,65 +131,61 @@ void Renderer::build_buffers(MTL::Device* device) {
     using simd::float2;
     using simd::float3;
 
-    const float s = 0.5f;
-
     VertexData verts[] = {
         //                                         Texture
         //   Positions           Normals         Coordinates
-        { { -s, -s, +s }, {  0.f,  0.f,  1.f }, { 0.f, 1.f } },
-        { { +s, -s, +s }, {  0.f,  0.f,  1.f }, { 1.f, 1.f } },
-        { { +s, +s, +s }, {  0.f,  0.f,  1.f }, { 1.f, 0.f } },
-        { { -s, +s, +s }, {  0.f,  0.f,  1.f }, { 0.f, 0.f } },
+        { { +0.5, -0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 0.f, 1.f } },
+        { { -0.5, -0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 1.f, 1.f } },
+        { { -0.5, +0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 1.f, 0.f } },
+        { { -0.5, +0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 1.f, 0.f } },
+        { { +0.5, +0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 0.f, 0.f } },
+        { { +0.5, -0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 0.f, 1.f } },
+        
+        { { -0.5, -0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 0.f, 1.f } },
+        { { +0.5, -0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 1.f, 1.f } },
+        { { +0.5, +0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 1.f, 0.f } },
+        { { +0.5, +0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 1.f, 0.f } },
+        { { -0.5, +0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 0.f, 0.f } },
+        { { -0.5, -0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 0.f, 1.f } },
 
-        { { +s, -s, +s }, {  1.f,  0.f,  0.f }, { 0.f, 1.f } },
-        { { +s, -s, -s }, {  1.f,  0.f,  0.f }, { 1.f, 1.f } },
-        { { +s, +s, -s }, {  1.f,  0.f,  0.f }, { 1.f, 0.f } },
-        { { +s, +s, +s }, {  1.f,  0.f,  0.f }, { 0.f, 0.f } },
+        { { +0.5, -0.5, +0.5 }, {  1.f,  0.f,  0.f }, { 0.f, 1.f } },
+        { { +0.5, -0.5, -0.5 }, {  1.f,  0.f,  0.f }, { 1.f, 1.f } },
+        { { +0.5, +0.5, -0.5 }, {  1.f,  0.f,  0.f }, { 1.f, 0.f } },
+        { { +0.5, +0.5, -0.5 }, {  1.f,  0.f,  0.f }, { 1.f, 0.f } },
+        { { +0.5, +0.5, +0.5 }, {  1.f,  0.f,  0.f }, { 0.f, 0.f } },
+        { { +0.5, -0.5, +0.5 }, {  1.f,  0.f,  0.f }, { 0.f, 1.f } },
 
-        { { +s, -s, -s }, {  0.f,  0.f, -1.f }, { 0.f, 1.f } },
-        { { -s, -s, -s }, {  0.f,  0.f, -1.f }, { 1.f, 1.f } },
-        { { -s, +s, -s }, {  0.f,  0.f, -1.f }, { 1.f, 0.f } },
-        { { +s, +s, -s }, {  0.f,  0.f, -1.f }, { 0.f, 0.f } },
+        { { -0.5, -0.5, -0.5 }, { -1.f,  0.f,  0.f }, { 0.f, 1.f } },
+        { { -0.5, -0.5, +0.5 }, { -1.f,  0.f,  0.f }, { 1.f, 1.f } },
+        { { -0.5, +0.5, +0.5 }, { -1.f,  0.f,  0.f }, { 1.f, 0.f } },
+        { { -0.5, +0.5, +0.5 }, { -1.f,  0.f,  0.f }, { 1.f, 0.f } },
+        { { -0.5, +0.5, -0.5 }, { -1.f,  0.f,  0.f }, { 0.f, 0.f } },
+        { { -0.5, -0.5, -0.5 }, { -1.f,  0.f,  0.f }, { 0.f, 1.f } },
 
-        { { -s, -s, -s }, { -1.f,  0.f,  0.f }, { 0.f, 1.f } },
-        { { -s, -s, +s }, { -1.f,  0.f,  0.f }, { 1.f, 1.f } },
-        { { -s, +s, +s }, { -1.f,  0.f,  0.f }, { 1.f, 0.f } },
-        { { -s, +s, -s }, { -1.f,  0.f,  0.f }, { 0.f, 0.f } },
+        { { -0.5, +0.5, +0.5 }, {  0.f,  1.f,  0.f }, { 0.f, 1.f } },
+        { { +0.5, +0.5, +0.5 }, {  0.f,  1.f,  0.f }, { 1.f, 1.f } },
+        { { +0.5, +0.5, -0.5 }, {  0.f,  1.f,  0.f }, { 1.f, 0.f } },
+        { { +0.5, +0.5, -0.5 }, {  0.f,  1.f,  0.f }, { 1.f, 0.f } },
+        { { -0.5, +0.5, -0.5 }, {  0.f,  1.f,  0.f }, { 0.f, 0.f } },
+        { { -0.5, +0.5, +0.5 }, {  0.f,  1.f,  0.f }, { 0.f, 1.f } },
 
-        { { -s, +s, +s }, {  0.f,  1.f,  0.f }, { 0.f, 1.f } },
-        { { +s, +s, +s }, {  0.f,  1.f,  0.f }, { 1.f, 1.f } },
-        { { +s, +s, -s }, {  0.f,  1.f,  0.f }, { 1.f, 0.f } },
-        { { -s, +s, -s }, {  0.f,  1.f,  0.f }, { 0.f, 0.f } },
-
-        { { -s, -s, -s }, {  0.f, -1.f,  0.f }, { 0.f, 1.f } },
-        { { +s, -s, -s }, {  0.f, -1.f,  0.f }, { 1.f, 1.f } },
-        { { +s, -s, +s }, {  0.f, -1.f,  0.f }, { 1.f, 0.f } },
-        { { -s, -s, +s }, {  0.f, -1.f,  0.f }, { 0.f, 0.f } }
-    };
-
-    uint16_t indices[] = {
-        12, 13, 14, 14, 15, 12, //front
-        0,  1,  2,  2,  3,  0, //right
-        4,  5,  6,  6,  7,  4, //back
-        8,  9, 10, 10, 11,  8, //left
-        16, 17, 18, 18, 19, 16, //top
-        20, 21, 22, 22, 23, 20 //bot
+        { { -0.5, -0.5, -0.5 }, {  0.f, -1.f,  0.f }, { 0.f, 1.f } },
+        { { +0.5, -0.5, -0.5 }, {  0.f, -1.f,  0.f }, { 1.f, 1.f } },
+        { { +0.5, -0.5, +0.5 }, {  0.f, -1.f,  0.f }, { 1.f, 0.f } },
+        { { +0.5, -0.5, +0.5 }, {  0.f, -1.f,  0.f }, { 1.f, 0.f } },
+        { { -0.5, -0.5, +0.5 }, {  0.f, -1.f,  0.f }, { 0.f, 0.f } },
+        { { -0.5, -0.5, -0.5 }, {  0.f, -1.f,  0.f }, { 0.f, 1.f } }
     };
     
     const size_t vertexDataSize = sizeof( verts );
-    const size_t indexDataSize = sizeof( indices );
 
     MTL::Buffer* pVertexBuffer = device->newBuffer( vertexDataSize, MTL::ResourceStorageModeManaged );
-    MTL::Buffer* pIndexBuffer = device->newBuffer( indexDataSize, MTL::ResourceStorageModeManaged );
 
     _pVertexDataBuffer = pVertexBuffer;
-    _pIndexBuffer = pIndexBuffer;
 
     memcpy( _pVertexDataBuffer->contents(), verts, vertexDataSize );
-    memcpy( _pIndexBuffer->contents(), indices, indexDataSize );
 
     _pVertexDataBuffer->didModifyRange( NS::Range::Make( 0, _pVertexDataBuffer->length() ) );
-    _pIndexBuffer->didModifyRange( NS::Range::Make( 0, _pIndexBuffer->length() ) );
 
     const size_t cameraDataSize = kMaxFramesInFlight * sizeof( CameraData );
     for ( size_t i = 0; i < kMaxFramesInFlight; ++i ) {
@@ -256,11 +254,11 @@ void Renderer::run() {
 
     int blockDataArr[6] = {bd->sideFront, bd->sideRight, bd->sideBack, bd->sideLeft ,bd->top, bd->bot};
 
-    for (int mix = 0; mix < 6;mix++) {
-        std::cout << "pos: " <<GetPos(blockDataArr[mix])[0] << ", " << GetPos(blockDataArr[mix])[1] << ", " << GetPos(blockDataArr[mix])[2] << " side: " << GetSide(blockDataArr[mix]) << " blockID: " << GetBlockId(blockDataArr[mix]) << std::endl;
-        std::cout << "binary: " << std::bitset<32>(blockDataArr[mix]) << std::endl;
-        std::cout << GetSide(blockDataArr[mix]) << std::endl;
-    }
+    // for (int mix = 0; mix < 6;mix++) {
+    //     std::cout << "pos: " <<GetPos(blockDataArr[mix])[0] << ", " << GetPos(blockDataArr[mix])[1] << ", " << GetPos(blockDataArr[mix])[2] << " side: " << GetSide(blockDataArr[mix]) << " blockID: " << GetBlockId(blockDataArr[mix]) << std::endl;
+    //     std::cout << "binary: " << std::bitset<32>(blockDataArr[mix]) << std::endl;
+    //     std::cout << GetSide(blockDataArr[mix]) << std::endl;
+    // }
 
     glm::vec2 menu_size = {window->window_size.x*0.5, window->window_size.y*0.5};
 
@@ -376,7 +374,6 @@ void Renderer::run() {
                     context->device->release();
                     _pShaderLibrary->release();
                     _pVertexColorsBuffer->release();
-                    _pIndexBuffer->release();
                     pRenderPipelineState->release();
 
                     ImGui_ImplMetal_Shutdown();
@@ -399,11 +396,7 @@ void Renderer::run() {
         pCommandEncoder->setCullMode( MTL::CullModeBack );
         pCommandEncoder->setFrontFacingWinding( MTL::Winding::WindingCounterClockwise );
 
-        pCommandEncoder->drawIndexedPrimitives( MTL::PrimitiveType::PrimitiveTypeTriangle,
-                                                6 * 6, MTL::IndexType::IndexTypeUInt16,
-                                                _pIndexBuffer,
-                                                0,
-                                                1 );
+        pCommandEncoder->drawPrimitives(MTL::PrimitiveType::PrimitiveTypeTriangle, 0, 36, 1);
 
         pCommandEncoder->setCullMode( MTL::CullModeBack);
         pCommandEncoder->setFrontFacingWinding( MTL::Winding::WindingClockwise );
@@ -428,7 +421,6 @@ void Renderer::run() {
     context->device->release();
     _pShaderLibrary->release();
     _pVertexColorsBuffer->release();
-    _pIndexBuffer->release();
     pRenderPipelineState->release();
 
     ImGui_ImplMetal_Shutdown();

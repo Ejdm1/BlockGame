@@ -27,6 +27,7 @@ struct Renderer {
     void build_spencil(MTL::Device* device);
     void build_textures(MTL::Device* device);
     void run();
+    // int blockAmount = 4 * 4;
     static constexpr size_t kMaxFramesInFlight = 3;
     MTL::RenderPipelineState* pRenderPipelineState;
     MTL::Buffer* _pVertexColorsBuffer;
@@ -36,7 +37,6 @@ struct Renderer {
     dispatch_semaphore_t _semaphore;
     MTL::DepthStencilState* pDepthStencilDescriptor;
     MTL::Buffer* _pCameraDataBuffer[kMaxFramesInFlight];
-    MTL::Buffer* _pIndexBuffer;
     MTL::Buffer* _pVertexDataBuffer;
     MTL::Buffer* _pBlockDataBuffer;
     MTL::Texture* pTextureArr[128];
@@ -49,6 +49,19 @@ struct Renderer {
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration;
 };
 
+static const std::vector<std::string> texture_names = {
+    "grass_block_side",
+    "grass_block_top",
+    "dirt",
+    "stone",
+    "cobblestone",
+    "sand"
+};
+
+struct ChunkData {
+    simd::float3 chunkPosition;
+};
+
 struct FrameData {
     float angle;
 };
@@ -57,12 +70,6 @@ struct VertexData {
     simd::float3 position;
     simd::float3 normal;
     simd::float2 texcoord;
-};
-
-enum struct BlockID : int {
-    grass_top,
-    grass_side,
-    grass_bottom
 };
 
 inline int blockFace(const glm::vec3& pos, int side, int block_id) {
@@ -100,5 +107,10 @@ inline int blockFace(const glm::vec3& pos, int side, int block_id) {
 }
 
 struct BlockData {
-    int sideFront = blockFace(glm::vec3 {0,0,1}, 0, 0),sideRight = blockFace(glm::vec3 {-1,0,0}, 1, 0),sideBack = blockFace(glm::vec3 {0,0,-1}, 2, 0),sideLeft = blockFace(glm::vec3 {1,0,0}, 3, 0),top = blockFace(glm::vec3 {0,1,0}, 4, 0),bot = blockFace(glm::vec3 {0,-1,0}, 5, 0);
+    int sideFront = blockFace(glm::vec3 {0,0,0}, 0, 0),
+    sideRight = blockFace(glm::vec3 {0,0,0}, 1, 0),
+    sideBack = blockFace(glm::vec3 {0,0,0}, 2, 0),
+    sideLeft = blockFace(glm::vec3 {0,0,0}, 3, 0),
+    top = blockFace(glm::vec3 {0,0,0}, 4, 0),
+    bot = blockFace(glm::vec3 {0,0,0}, 5, 0);
 };

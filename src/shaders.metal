@@ -29,6 +29,10 @@ struct Textures {
     texture2d<half> textures_array[128];
 };
 
+struct ChunkData {
+    float3 chunkPosition;
+};
+
 float MoveBits(int bitAmount, int bitsRight, int data) {
     int shiftedRight = data >> bitsRight;
     int bitMask = (1 << bitAmount) -1;
@@ -54,28 +58,23 @@ int GetBlockId(int data) {
 v2f vertex vertexMain( device const VertexData* vertexData [[buffer(0)]],
                         device const CameraData& cameraData [[buffer(1)]],
                         constant BlockData &blockData [[buffer(2)]],
-                        uint vertexId [[vertex_id]],
-                        uint instanceId [[instance_id]] ) {
-    
+                        uint counter [[vertex_id]] ) {
     v2f o;
-    int block_sideID = vertexId / 4;
-    int block_posID = vertexId - block_sideID * 4;
+    int block_sideID = counter / 6;
+    int block_ID = GetBlockId(blockData.blockDataArr[block_sideID]);
+    int block_textureID = GetSide(blockData.blockDataArr[block_sideID]);
 
-    // float3 side_middle = GetPos(blockDataArr[block_sideID]);
-
-    const device VertexData& vd = vertexData[ vertexId ];
+    const device VertexData& vd = vertexData[ counter ];
     float4 pos = float4( vd.position, 1.0 );
     o.position = cameraData.perspectiveTransform * cameraData.worldTransform * pos;
 
-    int textureID = GetSide(blockData.blockDataArr[block_sideID]);
-
     o.texcoord = vd.texcoord.xy;
-    switch (textureID) {
-        case 0 || 1 || 2 || 3:
-            o.side = 1;
+    switch (block_textureID) {
+        case 0:
+            o.side = 0;
             break;
         case 4:
-            o.side = 0;
+            o.side = 1;
             break;
         case 5:
             o.side = 2;
