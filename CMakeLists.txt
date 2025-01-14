@@ -22,7 +22,6 @@ add_executable(test src/backend/glfw_adapter.mm
                     dependencies/imgui/backends/imgui_impl_glfw.h
                     dependencies/imgui/backends/imgui_impl_glfw.cpp)
 
-
 target_include_directories(test PRIVATE dependencies)
 target_include_directories(test PRIVATE src)
 

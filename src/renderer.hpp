@@ -38,24 +38,36 @@ struct Renderer {
     MTL::DepthStencilState* pDepthStencilDescriptor;
     MTL::Buffer* _pCameraDataBuffer[kMaxFramesInFlight];
     MTL::Buffer* _pVertexDataBuffer;
-    MTL::Buffer* _pBlockDataBuffer;
+    MTL::ArgumentEncoder* pArgumentEncoderFragment;
+    MTL::Buffer* pArgumentBufferFragment;
+    MTL::Buffer* _pArgumentBufferVertex;
     MTL::Texture* pTextureArr[128];
     MTL::Function* pFragmentFunction;
     MTL::Function* pVertexFunction;
     float delta_time = 0.f;
     MTL::RenderCommandEncoder* pCommandEncoder;
-
     bool* p_open;
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration;
+
+
+    int blockID = 4;
+    int instanceCount = 16384;
 };
 
 static const std::vector<std::string> texture_names = {
-    "grass_block_side",
-    "grass_block_top",
-    "dirt",
-    "stone",
-    "cobblestone",
-    "sand"
+"coalore_block", "cobblestone_block", "diamondore_block", "dirt_block", "grass_block", "gravel_block", "ice_block", "ironore_block", "leavesoak_block", "logoak_block", 
+"obsidian_block", "planksoak_block", "sand_block", "sandstone_block", "snow_block", "stone_block", "clay_block"
+};
+
+static const int texture_side_amounts[47] = {
+1, 1, 1, 1, 3, 1, 1, 1, 1, 3, 
+1, 1, 1, 3, 1, 1, 1
+};
+
+static const std::vector<std::string> texture_end_names = {
+    "_bottom",
+    "_side",
+    "_top"
 };
 
 struct ChunkData {
@@ -70,6 +82,10 @@ struct VertexData {
     simd::float3 position;
     simd::float3 normal;
     simd::float2 texcoord;
+};
+
+struct Blocks {
+    int blocks;
 };
 
 inline int blockFace(const glm::vec3& pos, int side, int block_id) {
@@ -105,12 +121,3 @@ inline int blockFace(const glm::vec3& pos, int side, int block_id) {
 
     return data;
 }
-
-struct BlockData {
-    int sideFront = blockFace(glm::vec3 {0,0,0}, 0, 0),
-    sideRight = blockFace(glm::vec3 {0,0,0}, 1, 0),
-    sideBack = blockFace(glm::vec3 {0,0,0}, 2, 0),
-    sideLeft = blockFace(glm::vec3 {0,0,0}, 3, 0),
-    top = blockFace(glm::vec3 {0,0,0}, 4, 0),
-    bot = blockFace(glm::vec3 {0,0,0}, 5, 0);
-};

@@ -82,48 +82,60 @@ void Renderer::build_shaders(MTL::Device* device) {
     std::cout << "Shaders built" << std::endl;
 }
 
-void Renderer::build_textures(MTL::Device* device)
-{
+void Renderer::build_textures(MTL::Device* device) {
     int size_x = 0;
     int size_y = 0;
     int num_channels = 0;
-    std::vector<stbi_uc*> textureArr;
-    MTL::TextureDescriptor* pTextureDescriptor = MTL::TextureDescriptor::alloc()->init();
+    int indexCounter = 0;
+    int count = 1;
 
     for (int i = 0; i < texture_names.size(); i++) {
+        int texture_amount = texture_side_amounts[i];
         std::string textureFileType = ".png";
         std::string texturePath = "./src/Textures/";
-        std::string textureName = texture_names[i];
-        std::string textureFullName = texturePath + textureName + textureFileType;
-        const char* constTexturePath = textureFullName.c_str();
-        stbi_uc* texture = stbi_load(constTexturePath, &size_x, &size_y, &num_channels, 4);
-        int spaces = 32 - textureName.length();
-        if(texture != nullptr) {
+        for(int j = 0; j < texture_amount;j++) {
+            std::string textureName = texture_names[i];
+            if(texture_amount == 3) {
+                textureName += texture_end_names[j];
+            }
             
-            for (int k = 0; k < spaces; k++) {
-                textureName += "-";
-            }
-            std::cout << textureName << "> Found" << std::endl;
+            std::string textureFullName = texturePath + textureName + textureFileType;
 
-            pTextureDescriptor->setWidth( static_cast<NS::UInteger>(size_x) );
-            pTextureDescriptor->setHeight( static_cast<NS::UInteger>(size_y) );
-            pTextureDescriptor->setPixelFormat( MTL::PixelFormatRGBA8Unorm );
-            pTextureDescriptor->setTextureType( MTL::TextureType2D );
-            pTextureDescriptor->setStorageMode( MTL::StorageModeManaged );
-            pTextureDescriptor->setUsage( MTL::ResourceUsageSample | MTL::ResourceUsageRead );
+            const char* constTexturePath = textureFullName.c_str();
+            stbi_uc* texture = stbi_load(constTexturePath, &size_x, &size_y, &num_channels, 4);
 
-            pTextureArr[i] = device->newTexture( pTextureDescriptor );
-            pTextureArr[i]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, texture, size_x * 4 );
-            stbi_image_free(texture);
-        }
-        else {
-            for (int k = 0; k < spaces; k++) {
-                textureName += "-";
+            int spaces = 32 - textureName.length();
+            if(texture != nullptr) {
+                MTL::TextureDescriptor* pTextureDescriptor = MTL::TextureDescriptor::alloc()->init();
+
+                for (int k = 0; k < spaces; k++) {
+                    textureName += "-";
+                }
+                std::cout << textureName << "> Number: " << count << " Found" << std::endl;
+
+                pTextureDescriptor->setWidth( static_cast<NS::UInteger>(size_x) );
+                pTextureDescriptor->setHeight( static_cast<NS::UInteger>(size_y) );
+                pTextureDescriptor->setPixelFormat( MTL::PixelFormatRGBA8Unorm );
+                pTextureDescriptor->setTextureType( MTL::TextureType2D );
+                pTextureDescriptor->setStorageMode( MTL::StorageModeManaged );
+                pTextureDescriptor->setUsage( MTL::ResourceUsageSample | MTL::ResourceUsageRead );
+
+                pTextureArr[indexCounter] = device->newTexture( pTextureDescriptor );
+                pTextureArr[indexCounter]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, texture, size_x * 4 );
+                stbi_image_free(texture);
+                pTextureDescriptor->release();
+                indexCounter++;
             }
-            std::cout << textureName << "> Not found" << std::endl;
+            else {
+                for (int k = 0; k < spaces; k++) {
+                    textureName += "-";
+                }
+                std::cout << textureName << "> Number: " << count << " Not found" << std::endl;
+            }
+            count++;
         }
     }
-    pTextureDescriptor->release();
+
     std::cout << "Textures built" << std::endl;
 }
 
@@ -132,8 +144,8 @@ void Renderer::build_buffers(MTL::Device* device) {
     using simd::float3;
 
     VertexData verts[] = {
-        //                                         Texture
-        //   Positions           Normals         Coordinates
+        //                                                                               Texture
+        //                   Positions                        Normals                   Coordinates
         { { +0.5, -0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 0.f, 1.f } },
         { { -0.5, -0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 1.f, 1.f } },
         { { -0.5, +0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 1.f, 0.f } },
@@ -192,6 +204,66 @@ void Renderer::build_buffers(MTL::Device* device) {
         _pCameraDataBuffer[ i ] = device->newBuffer( cameraDataSize, MTL::ResourceStorageModeManaged );
     }
 
+    Blocks blocks[1024][6] = {blockFace(glm::vec3 {0,0,0}, 0, blockID), 
+                    blockFace(glm::vec3 {0,0,0}, 1, blockID), 
+                    blockFace(glm::vec3 {0,0,0}, 2, blockID), 
+                    blockFace(glm::vec3 {0,0,0}, 3, blockID), 
+                    blockFace(glm::vec3 {0,0,0}, 4, blockID), 
+                    blockFace(glm::vec3 {0,0,0}, 5, blockID),
+
+                    blockFace(glm::vec3 {0,1,0}, 0, blockID), 
+                    blockFace(glm::vec3 {0,1,0}, 1, blockID), 
+                    blockFace(glm::vec3 {0,1,0}, 2, blockID), 
+                    blockFace(glm::vec3 {0,1,0}, 3, blockID), 
+                    blockFace(glm::vec3 {0,1,0}, 4, blockID), 
+                    blockFace(glm::vec3 {0,1,0}, 5, blockID),
+
+                    blockFace(glm::vec3 {0,0,0}, 0, blockID), 
+                    blockFace(glm::vec3 {0,0,0}, 1, blockID), 
+                    blockFace(glm::vec3 {0,0,0}, 2, blockID), 
+                    blockFace(glm::vec3 {0,0,0}, 3, blockID), 
+                    blockFace(glm::vec3 {0,0,0}, 4, blockID), 
+                    blockFace(glm::vec3 {0,0,0}, 5, blockID)
+                    };
+
+    // ########### Block data print ###########
+    // for(int i = 0; i < 5;i++) {
+    //     for(int j = 0; j < 6; j++) {
+    //         std::cout << "Block pos x " << GetPos(Blocks[i][j]).x << " Block pos y " << GetPos(Blocks[i][j]).y << " Block pos z " << GetPos(Blocks[i][j]).z << GetPos(Blocks[i][j]).x << " Block ID " << GetBlockId(Blocks[i][j]) << std::endl;
+    //     }
+    //     std::cout << std::endl;
+    // }
+
+    const size_t blockDataSize = sizeof( blocks );
+
+    MTL::Buffer* pArgumentBufferVertex = device->newBuffer(blockDataSize, MTL::ResourceStorageModeManaged);
+
+    _pArgumentBufferVertex = pArgumentBufferVertex;
+
+    memcpy( _pArgumentBufferVertex->contents(), blocks,  blockDataSize);
+
+    _pArgumentBufferVertex->didModifyRange( NS::Range::Make( 0, _pArgumentBufferVertex->length() ) );
+
+
+
+    // const size_t vertexDataSize = sizeof( verts );
+
+    // MTL::Buffer* pVertexBuffer = device->newBuffer( vertexDataSize, MTL::ResourceStorageModeManaged );
+
+    // _pVertexDataBuffer = pVertexBuffer;
+
+    // memcpy( _pVertexDataBuffer->contents(), verts, vertexDataSize );
+
+    // _pVertexDataBuffer->didModifyRange( NS::Range::Make( 0, _pVertexDataBuffer->length() ) );
+    
+
+    pArgumentEncoderFragment = pFragmentFunction->newArgumentEncoder(0);
+
+    size_t argumentBufferLengthFragment = pArgumentEncoderFragment->encodedLength();
+    pArgumentBufferFragment = device->newBuffer(argumentBufferLengthFragment, MTL::ResourceStorageModeManaged);
+
+    pArgumentEncoderFragment->setArgumentBuffer(pArgumentBufferFragment, 0);
+
     std::cout << "Buffers built" << std::endl;
 }
 
@@ -229,11 +301,11 @@ void Renderer::run() {
 
     context->setup(window->glfwWindow);
 
-    Renderer::build_frame(context->device);
     Renderer::build_shaders(context->device);
+    Renderer::build_frame(context->device);
+    Renderer::build_buffers(context->device);
     Renderer::build_spencil(context->device);
     Renderer::build_textures(context->device);
-    Renderer::build_buffers(context->device);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -249,18 +321,9 @@ void Renderer::run() {
     Clock::time_point start = Clock::now(), prev_time = start;
     delta_time = 1.0f;
 
-    bool printBlock = true;
-    BlockData* bd = new BlockData;
-
-    int blockDataArr[6] = {bd->sideFront, bd->sideRight, bd->sideBack, bd->sideLeft ,bd->top, bd->bot};
-
-    // for (int mix = 0; mix < 6;mix++) {
-    //     std::cout << "pos: " <<GetPos(blockDataArr[mix])[0] << ", " << GetPos(blockDataArr[mix])[1] << ", " << GetPos(blockDataArr[mix])[2] << " side: " << GetSide(blockDataArr[mix]) << " blockID: " << GetBlockId(blockDataArr[mix]) << std::endl;
-    //     std::cout << "binary: " << std::bitset<32>(blockDataArr[mix]) << std::endl;
-    //     std::cout << GetSide(blockDataArr[mix]) << std::endl;
-    // }
-
     glm::vec2 menu_size = {window->window_size.x*0.5, window->window_size.y*0.5};
+
+    NS::Range textureRange = NS::Range(0, (sizeof(pTextureArr) / sizeof(pTextureArr[0])));
 
     std::cout << "Rendering" << std::endl;
 
@@ -305,37 +368,19 @@ void Renderer::run() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+
         MTL::RenderCommandEncoder* pCommandEncoder = pCommandBuffer->renderCommandEncoder( pRenderPassDescriptor );
 
         pCommandEncoder->setRenderPipelineState( pRenderPipelineState );
         pCommandEncoder->setDepthStencilState( pDepthStencilDescriptor );
 
+
         pCommandEncoder->setVertexBuffer( _pVertexDataBuffer, 0, 0 );
         pCommandEncoder->setVertexBuffer( pCameraDataBuffer, 0, 1 );
+        pCommandEncoder->setVertexBuffer( _pArgumentBufferVertex, 0, 2 );
 
-        MTL::ArgumentEncoder* pArgumentEncoderFragment = pFragmentFunction->newArgumentEncoder(0);
-
-        size_t argumentBufferLengthFragment = pArgumentEncoderFragment->encodedLength();
-        MTL::Buffer* pArgumentBufferFragment = context->device->newBuffer(argumentBufferLengthFragment, MTL::ResourceStorageModeShared);
-
-        pArgumentEncoderFragment->setArgumentBuffer(pArgumentBufferFragment, 0);
-
-        NS::Range textureRange = NS::Range(0, 127);
         pArgumentEncoderFragment->setTextures( pTextureArr, textureRange);
-
         pCommandEncoder->setFragmentBuffer(pArgumentBufferFragment, 0, 0);
-
-        MTL::ArgumentEncoder* pArgumentEncoderVertex = pVertexFunction->newArgumentEncoder(2);
-
-        size_t argumentBufferLengthVertex = pArgumentEncoderVertex->encodedLength();
-        const size_t blockDataSize = sizeof( blockDataArr );
-        MTL::Buffer* pArgumentBufferVertex = context->device->newBuffer(blockDataSize, MTL::ResourceStorageModeShared);
-
-        memcpy( pArgumentBufferVertex->contents(), blockDataArr,  blockDataSize);
-
-        pArgumentEncoderFragment->setArgumentBuffer(pArgumentBufferVertex, 0);
-
-        pCommandEncoder->setVertexBuffer(pArgumentBufferVertex, 0, 2);
 
         if(window->menu) {
             if(window->options) {
@@ -396,7 +441,7 @@ void Renderer::run() {
         pCommandEncoder->setCullMode( MTL::CullModeBack );
         pCommandEncoder->setFrontFacingWinding( MTL::Winding::WindingCounterClockwise );
 
-        pCommandEncoder->drawPrimitives(MTL::PrimitiveType::PrimitiveTypeTriangle, 0, 36, 1);
+        pCommandEncoder->drawPrimitives(MTL::PrimitiveType::PrimitiveTypeTriangle, 0, 36, instanceCount);
 
         pCommandEncoder->setCullMode( MTL::CullModeBack);
         pCommandEncoder->setFrontFacingWinding( MTL::Winding::WindingClockwise );

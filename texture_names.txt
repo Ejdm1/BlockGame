@@ -1,0 +1,2 @@
+"coalore_block", "cobblestone_block", "diamondore_block", "dirt_block", "grass_block", "gravel_block", "ice_block", "ironore_block", "leavesoak_block", "logoak_block", 
+"obsidian_block", "planksoak_block", "sand_block", "sandstone_block", "snow_block", "stone_block"
