@@ -39,7 +39,7 @@ void Renderer::build_shaders(MTL::Device* device) {
     std::string shaderStr = "";
 
     std::ifstream shadeingFile;
-    shadeingFile.open("./src/shaders.metal");
+    shadeingFile.open("/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/shaders.metal");//"./src/shaders.metal");
 
     if (!shadeingFile.is_open()) {
         std::cout << "Error: Couldnt be opened" << std::endl;
@@ -65,7 +65,7 @@ void Renderer::build_shaders(MTL::Device* device) {
     MTL::RenderPipelineDescriptor* pRenderPipelineDescriptor = MTL::RenderPipelineDescriptor::alloc()->init();
     pRenderPipelineDescriptor->setVertexFunction( pVertexFunction );
     pRenderPipelineDescriptor->setFragmentFunction( pFragmentFunction );
-    pRenderPipelineDescriptor->colorAttachments()->object(0)->setPixelFormat( MTL::PixelFormat::PixelFormatBGRA8Unorm );
+    pRenderPipelineDescriptor->colorAttachments()->object(0)->setPixelFormat( MTL::PixelFormat::PixelFormatRGBA8Unorm_sRGB );
     pRenderPipelineDescriptor->setDepthAttachmentPixelFormat( MTL::PixelFormat::PixelFormatDepth16Unorm );
 
     pRenderPipelineState = device->newRenderPipelineState( pRenderPipelineDescriptor, &pError );
@@ -104,7 +104,7 @@ void Renderer::build_textures(MTL::Device* device) {
             const char* constTexturePath = textureFullName.c_str();
             stbi_uc* texture = stbi_load(constTexturePath, &size_x, &size_y, &num_channels, 4);
 
-            int spaces = 32 - textureName.length();
+            size_t spaces = 32 - textureName.length();
             if(texture != nullptr) {
                 MTL::TextureDescriptor* pTextureDescriptor = MTL::TextureDescriptor::alloc()->init();
 
@@ -115,7 +115,7 @@ void Renderer::build_textures(MTL::Device* device) {
 
                 pTextureDescriptor->setWidth( static_cast<NS::UInteger>(size_x) );
                 pTextureDescriptor->setHeight( static_cast<NS::UInteger>(size_y) );
-                pTextureDescriptor->setPixelFormat( MTL::PixelFormatRGBA8Unorm );
+                pTextureDescriptor->setPixelFormat( MTL::PixelFormatRGBA8Unorm_sRGB );
                 pTextureDescriptor->setTextureType( MTL::TextureType2D );
                 pTextureDescriptor->setStorageMode( MTL::StorageModeManaged );
                 pTextureDescriptor->setUsage( MTL::ResourceUsageSample | MTL::ResourceUsageRead );
@@ -204,27 +204,35 @@ void Renderer::build_buffers(MTL::Device* device) {
         _pCameraDataBuffer[ i ] = device->newBuffer( cameraDataSize, MTL::ResourceStorageModeManaged );
     }
 
-    Blocks blocks[1024][6] = {blockFace(glm::vec3 {0,0,0}, 0, blockID), 
-                    blockFace(glm::vec3 {0,0,0}, 1, blockID), 
-                    blockFace(glm::vec3 {0,0,0}, 2, blockID), 
-                    blockFace(glm::vec3 {0,0,0}, 3, blockID), 
-                    blockFace(glm::vec3 {0,0,0}, 4, blockID), 
-                    blockFace(glm::vec3 {0,0,0}, 5, blockID),
+Blocks blocks[instanceCount];
 
-                    blockFace(glm::vec3 {0,1,0}, 0, blockID), 
-                    blockFace(glm::vec3 {0,1,0}, 1, blockID), 
-                    blockFace(glm::vec3 {0,1,0}, 2, blockID), 
-                    blockFace(glm::vec3 {0,1,0}, 3, blockID), 
-                    blockFace(glm::vec3 {0,1,0}, 4, blockID), 
-                    blockFace(glm::vec3 {0,1,0}, 5, blockID),
+std::memset(blocks, 0, sizeof(blocks));
 
-                    blockFace(glm::vec3 {0,0,0}, 0, blockID), 
-                    blockFace(glm::vec3 {0,0,0}, 1, blockID), 
-                    blockFace(glm::vec3 {0,0,0}, 2, blockID), 
-                    blockFace(glm::vec3 {0,0,0}, 3, blockID), 
-                    blockFace(glm::vec3 {0,0,0}, 4, blockID), 
-                    blockFace(glm::vec3 {0,0,0}, 5, blockID)
-                    };
+for(int i = 0; i < instanceCount; i++) {
+    blocks[i].block[0] = blockFace(glm::vec3 {31,-2,31}, 0, blockID);
+    blocks[i].block[1] = blockFace(glm::vec3 {31,-2,31}, 1, blockID);
+    blocks[i].block[2] = blockFace(glm::vec3 {31,-2,31}, 2, blockID);
+    blocks[i].block[3] = blockFace(glm::vec3 {31,-2,31}, 3, blockID);
+    blocks[i].block[4] = blockFace(glm::vec3 {31,-2,31}, 4, blockID);
+    blocks[i].block[5] = blockFace(glm::vec3 {31,-2,31}, 5, blockID);
+}
+
+// blockFace(glm::vec3 {0,1,0}, 0, blockID)
+// blockFace(glm::vec3 {0,1,0}, 1, blockID)
+// blockFace(glm::vec3 {0,1,0}, 2, blockID)
+// blockFace(glm::vec3 {0,1,0}, 3, blockID)
+// blockFace(glm::vec3 {0,1,0}, 4, blockID)
+// blockFace(glm::vec3 {0,1,0}, 5, blockID)
+
+// blockFace(glm::vec3 {0,0,0}, 0, blockID)
+// blockFace(glm::vec3 {0,0,0}, 1, blockID)
+// blockFace(glm::vec3 {0,0,0}, 2, blockID)
+// blockFace(glm::vec3 {0,0,0}, 3, blockID)
+// blockFace(glm::vec3 {0,0,0}, 4, blockID)
+// blockFace(glm::vec3 {0,0,0}, 5, blockID)
+
+
+                            
 
     // ########### Block data print ###########
     // for(int i = 0; i < 5;i++) {
@@ -353,7 +361,8 @@ void Renderer::run() {
         pCameraDataBuffer->didModifyRange( NS::Range::Make( 0, sizeof( CameraData ) ) );
 
         MTL::RenderPassDescriptor* pRenderPassDescriptor = MTL::RenderPassDescriptor::alloc()->init();
-
+        
+        
         MTL::RenderPassColorAttachmentDescriptor* pRenderPassColorAttachmentDescriptor = pRenderPassDescriptor->colorAttachments()->object(0);
         pRenderPassColorAttachmentDescriptor->setTexture(context->pMetalDrawable->texture());
         pRenderPassColorAttachmentDescriptor->setLoadAction(MTL::LoadActionClear);
@@ -453,7 +462,7 @@ void Renderer::run() {
         pCommandBuffer->commit();
         pCommandBuffer->waitUntilCompleted();
 
-        pool->release();
+         pool->release();
         auto now = Clock::now();
         delta_time = std::chrono::duration<float>(now - prev_time).count();
         prev_time = now;

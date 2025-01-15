@@ -4,6 +4,8 @@
 void Window::create_window() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_REFRESH_RATE, 200);
+
     int monitorAmount = 2;
     GLFWmonitor** monitors = glfwGetMonitors(&monitorAmount);
     GLFWmonitor* monitor;
@@ -13,7 +15,7 @@ void Window::create_window() {
     else {
         monitor = monitors[1];
     }
-    
+
     const GLFWvidmode* mode = glfwGetVideoMode(monitor);
 
     window_size.x = mode->width;

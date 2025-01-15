@@ -85,7 +85,7 @@ struct VertexData {
 };
 
 struct Blocks {
-    int blocks;
+    int block[6];
 };
 
 inline int blockFace(const glm::vec3& pos, int side, int block_id) {

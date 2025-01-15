@@ -22,7 +22,7 @@ struct CameraData {
 };
 
 struct BlockData {
-    int Blocks[16384][6];
+    int Block[6];
 };
 
 struct Textures {
@@ -65,18 +65,21 @@ constant int texture_real_index[47] = {
 14, 15, 16, 17, 20, 21
 };
 
-v2f vertex vertexMain( device const VertexData* vertexData [[buffer(0)]],
+v2f vertex vertexMain(  device const VertexData* vertexData [[buffer(0)]],
                         device const CameraData& cameraData [[buffer(1)]],
-                        constant BlockData &blockData [[buffer(2)]],
+                        device const  BlockData* blockData [[buffer(2)]],
                         uint counter [[vertex_id]],
                         uint instance [[instance_id]] ) {
     v2f o;
-    int block_sideID = (counter - (36 * (instance))) / 6;
-    int block_ID = GetBlockId(blockData.Blocks[instance][block_sideID]);
+
+    const device BlockData& bd = blockData[instance];
+
+    int block_sideID = GetSide(bd.Block[(counter) / 6]);
+    int block_ID = GetBlockId(bd.Block[block_sideID]);
 
     const device VertexData& vd = vertexData[ counter % 36 ];
-    float3 blockPos = GetPos(blockData.Blocks[instance][block_sideID]);
-    float4 pos = float4( vd.position + float3((instance/128), -2 ,(instance % 128)) - float3(64,0,64), 1.0 );
+    float3 blockPos = GetPos(bd.Block[block_sideID]);
+    float4 pos = float4( vd.position + float3((instance/128), 0 ,(instance % 128)) + blockPos, 1.0 );
     o.position = cameraData.perspectiveTransform * cameraData.worldTransform * pos;
 
     o.texcoord = vd.texcoord.xy;

@@ -56,7 +56,7 @@ void Camera::update(MTL::Buffer* pCameraDataBuffer, GLFWwindow* glfwWindow, glm:
                 if (glfwGetKey(glfwWindow, GLFW_KEY_A)  == GLFW_PRESS) { move_direction -= right_direction; }
                 if (glfwGetKey(glfwWindow, GLFW_KEY_SPACE)  == GLFW_PRESS) { move_direction += up_direction; }
                 if (glfwGetKey(glfwWindow, GLFW_KEY_LEFT_CONTROL)  == GLFW_PRESS) { move_direction -= up_direction; }
-                if (glfwGetKey(glfwWindow, GLFW_KEY_LEFT_SHIFT)  == GLFW_PRESS) { position += move_direction * delta_time * 15.f; }
+                if (glfwGetKey(glfwWindow, GLFW_KEY_LEFT_SHIFT)  == GLFW_PRESS) { position += move_direction * delta_time * 40.f; }
                 else if (glfwGetKey(glfwWindow, GLFW_KEY_LEFT_SHIFT)  != GLFW_PRESS) { position += move_direction * delta_time * 7.5f; }
             }
             if (glfwGetKey(glfwWindow, GLFW_KEY_ESCAPE) == GLFW_RELEASE && esc_pressed) { 
