@@ -21,68 +21,87 @@ struct CameraData {
     float3x3 worldNormalTransform;
 };
 
-struct BlockData {
-    int Block[6];
+struct Chunk {
+    int chunkPos;
+    int blocks[256*16*16];
 };
 
 struct Textures {
     texture2d<half> pTextureArr[128];
 };
 
-struct ChunkData {
-    float3 chunkPosition;
+struct NuberOfBlocksInChunk {
+    int nuberOfBlocks[256];
 };
 
 float MoveBits(int bitAmount, int bitsRight, int data) {
     int shiftedRight = data >> bitsRight;
     int bitMask = (1 << bitAmount) -1;
     int temp = shiftedRight & bitMask;
-    if (temp > 15) {
-        temp = -temp + 16;
-    }
     return static_cast<float>(temp);
 }
 
-float3 GetPos(int data) {
-    return float3{MoveBits(5, 0, data), MoveBits(5, 5, data), MoveBits(5, 10, data)};
+float2 GetChunkPosition(int pos) {
+    float2 posVec;
+    posVec.x = MoveBits(8,0,pos);
+    posVec.y = MoveBits(8,8,pos);
+    if(posVec.x > 128) {
+        posVec.x = (posVec.x * -1) + 128;
+    };
+    if(posVec.y > 128) {
+        posVec.y = (posVec.y * -1) + 128;
+    };
+    return posVec;
 }
 
-int GetSide(int data) {
-    return MoveBits(3, 15, data);
+float3 GetPos(int data) {
+    return float3{MoveBits(4, 0, data), MoveBits(8, 4, data), MoveBits(4, 12, data)};
 }
 
 int GetBlockId(int data) {
     return MoveBits(14, 18, data);
 }
 
-constant int texture_side_amounts[47] = {
+constant int texture_side_amounts[16] = {
 1, 1, 1, 1, 3, 1, 1, 1, 1, 3, 
 1, 1, 1, 3, 1, 1
 };
 
-constant int texture_real_index[47] = {
+constant int texture_real_index[16] = {
 0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 
 14, 15, 16, 17, 20, 21
 };
 
 v2f vertex vertexMain(  device const VertexData* vertexData [[buffer(0)]],
                         device const CameraData& cameraData [[buffer(1)]],
-                        device const  BlockData* blockData [[buffer(2)]],
+                        device const  Chunk* chunkIn [[buffer(2)]],
+                        device const NuberOfBlocksInChunk* nuberOfBlocksInChunk [[buffer(3)]],
                         uint counter [[vertex_id]],
-                        uint instance [[instance_id]] ) {
+                        uint instance [[instance_id]]) {
     v2f o;
+    int blockNumber = 0;
+    int chunkIndex = 0;
+    while(instance > blockNumber) {
+        blockNumber = blockNumber + nuberOfBlocksInChunk[0].nuberOfBlocks[chunkIndex];
+        chunkIndex++;
+    }
 
-    const device BlockData& bd = blockData[instance];
+    chunkIndex -= 1;
+    blockNumber = blockNumber - nuberOfBlocksInChunk[0].nuberOfBlocks[chunkIndex];
+    int blockIndex = instance - blockNumber;
+    const device Chunk& chunk = chunkIn[chunkIndex];
 
-    int block_sideID = GetSide(bd.Block[(counter) / 6]);
-    int block_ID = GetBlockId(bd.Block[block_sideID]);
+    int block_sideID = counter/6;
 
-    const device VertexData& vd = vertexData[ counter % 36 ];
-    float3 blockPos = GetPos(bd.Block[block_sideID]);
-    float4 pos = float4( vd.position + float3((instance/128), 0 ,(instance % 128)) + blockPos, 1.0 );
+    int block_ID = GetBlockId(chunk.blocks[blockIndex]);
+
+    const device VertexData& vd = vertexData[counter];
+    float3 blockPos = GetPos(chunk.blocks[blockIndex]);
+    float2 chunkPos = GetChunkPosition(chunk.chunkPos);
+    float4 pos = float4(vd.position + blockPos + float3(0,-127,0) + float3(chunkPos.x * 16,0,chunkPos.y * 16), 1.0);
     o.position = cameraData.perspectiveTransform * cameraData.worldTransform * pos;
-
     o.texcoord = vd.texcoord.xy;
+
     switch (texture_side_amounts[block_ID]) {
         case 3:
             switch (block_sideID) {
@@ -114,10 +133,12 @@ v2f vertex vertexMain(  device const VertexData* vertexData [[buffer(0)]],
     return o;
 }
 
-half4 fragment fragmentMain( v2f in [[stage_in]], device Textures &textures [[buffer(0)]] ) {
-    constexpr sampler s( address::repeat, filter::nearest );
+half4 fragment fragmentMain(v2f in [[stage_in]], device Textures &textures [[buffer(0)]]) {
+    constexpr sampler s(address::repeat, mag_filter::nearest, min_filter::linear);
 
-    half4 texel = textures.pTextureArr[in.side].sample( s, in.texcoord );
+    half4 texel = textures.pTextureArr[in.side].sample(s, in.texcoord);
 
-    return half4( texel );
+    if(texel.a < 0.1) {discard_fragment();}
+
+    return half4(texel);
 }

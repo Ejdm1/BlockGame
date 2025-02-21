@@ -4,7 +4,7 @@ files = []
 amounts = []
 add = True
 
-for file in glob.glob('/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/Textures/*.png'):
+for file in glob.glob('./src/Textures/*.png'):
     temp1 = str(file).split('/')[-1]
     temp2 = temp1.split('.')[0]
     temp3 = temp2.split('_')[0]
@@ -47,7 +47,7 @@ outStr = ""
 enterCount = 0;
 counter = 1
 underScore = 0
-for textureFile1 in glob.glob('/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/Textures/*.png'):
+for textureFile1 in glob.glob('./src/Textures/*.png'):
     temp1 = str(textureFile1).split('/')[-1]
     allFiles.append(temp1.split('.')[0])
     allFilesFirstName.append(temp1.split('_')[0])
@@ -87,7 +87,7 @@ files = []
 filesAll = []
 indexes = []
 add = True
-for file in glob.glob('/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/Textures/*.png'):
+for file in glob.glob('./src/Textures/*.png'):
     temp1 = str(file).split('/')[-1]
     temp2 = temp1.split('.')[0]
     temp3 = temp2.split('_')[0]

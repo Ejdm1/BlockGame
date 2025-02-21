@@ -38,9 +38,11 @@ struct Renderer {
     MTL::DepthStencilState* pDepthStencilDescriptor;
     MTL::Buffer* _pCameraDataBuffer[kMaxFramesInFlight];
     MTL::Buffer* _pVertexDataBuffer;
+    MTL::Buffer* _pnumberOfBlocksInChunkBufferVertex;
     MTL::ArgumentEncoder* pArgumentEncoderFragment;
     MTL::Buffer* pArgumentBufferFragment;
     MTL::Buffer* _pArgumentBufferVertex;
+    MTL::Buffer* _pNumberOfBlocksBufferVertex;
     MTL::Texture* pTextureArr[128];
     MTL::Function* pFragmentFunction;
     MTL::Function* pVertexFunction;
@@ -51,27 +53,25 @@ struct Renderer {
 
 
     int blockID = 4;
-    int instanceCount = 16384;
+    int chunkCount = 2;
+    int instanceCount = 16*16*256;
+    int blockCounter = 0;
 };
 
 static const std::vector<std::string> texture_names = {
 "coalore_block", "cobblestone_block", "diamondore_block", "dirt_block", "grass_block", "gravel_block", "ice_block", "ironore_block", "leavesoak_block", "logoak_block", 
-"obsidian_block", "planksoak_block", "sand_block", "sandstone_block", "snow_block", "stone_block", "clay_block"
+"glass_block", "planksoak_block", "sand_block", "sandstone_block", "snow_block", "stone_block"
 };
 
-static const int texture_side_amounts[47] = {
+static const int texture_side_amounts[16] = {
 1, 1, 1, 1, 3, 1, 1, 1, 1, 3, 
-1, 1, 1, 3, 1, 1, 1
+1, 1, 1, 3, 1, 1
 };
 
 static const std::vector<std::string> texture_end_names = {
     "_bottom",
     "_side",
     "_top"
-};
-
-struct ChunkData {
-    simd::float3 chunkPosition;
 };
 
 struct FrameData {
@@ -84,40 +84,36 @@ struct VertexData {
     simd::float2 texcoord;
 };
 
-struct Blocks {
-    int block[6];
+struct Block {
+    int block;
 };
 
-inline int blockFace(const glm::vec3& pos, int side, int block_id) {
+struct Chunk {
+    int chunkPos;
+    int blocks[256][16][16];
+};
+
+struct ChunkToGPU {
+    int chunkPos;
+    int blocks [16*16*256];
+};
+
+struct NuberOfBlocksInChunk {
+    int nuberOfBlocks[256] = {};
+};
+
+//Saveing block data into single int x,y,z,blockID(4bits x, 8bits y, 4bits z, 14bits blockID)//
+inline int blockFace(glm::vec3 pos, int block_id) {
     int data = 0;
-    int x, y, z;
+    if (pos.x > 15) {pos.x = 0;}
+    if (pos.y > 255) {pos.y = 0;}
+    if (pos.z > 15) {pos.z = 0;}
 
-    if (pos.x < 0) {
-        x = pos.x * -1 + 16;
-    }
-    else {
-        x = pos.x;
-    }
-
-    if (pos.y < 0) {
-        y = pos.y * -1 + 16;
-    }
-    else {
-        y = pos.y;
-    }
-
-    if (pos.z < 0) {
-        z = pos.z * -1 + 16;
-    }
-    else {
-        z = pos.z;
-    }
-
-    data |= (x & 0x1f) << 0;
-    data |= (y & 0x1f) << 5;
-    data |= (z & 0x1f) << 10;
-    data |= (side & 0x7) << 15;
+    data |= ((int)pos.x & 0xf) << 0;
+    data |= ((int)pos.y & 0xff) << 4;
+    data |= ((int)pos.z & 0xf) << 12;
     data |= (block_id & 0x3fff) << 18;
 
     return data;
 }
+///////////////////////////////////////////////////////////////////////////////////////////////

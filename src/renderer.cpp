@@ -6,32 +6,59 @@
 #include "math.hpp"
 
 #include <iostream>
-#include <bitset>
 #include <fstream>
 #include <string>
+// #include <FastNoise/FastNoise.h>
 
+//////////////////Move bits in integer to get stored values//////////////////////
 float MoveBits(int bitAmount, int bitsRight, int data) {
     int shiftedRight = data >> bitsRight;
     int bitMask = (1 << bitAmount) -1;
     int temp = shiftedRight & bitMask;
-    if (temp > 15) {
-        temp = -temp + 16;
-    }
     return static_cast<float>(temp);
 }
-
+/////////////////////////////////////////////////////////////////////////////////
+////////Get blocks position in chunk x,y,z(4bits x, 8bits y, 4bits z)////////////
 simd::float3 GetPos(int data) {
-    return simd::float3{MoveBits(5, 0, data), MoveBits(5, 5, data), MoveBits(5, 10, data)};
+    return simd::float3{MoveBits(4, 0, data), MoveBits(8, 4, data), MoveBits(4, 12, data)};
 }
-
-int GetSide(int data) {
-    return MoveBits(3, 15, data);
-}
-
+/////////////////////////////////////////////////////////////////////////////////
+/////////////////////////Get texture ID(max 14bits)//////////////////////////////
 int GetBlockId(int data) {
     return MoveBits(14, 18, data);
 }
+/////////////////////////////////////////////////////////////////////////////////
+////////////////////////Create sign bit for chunks position//////////////////////
+int ChunkPosition(int posInX, int posInY) {
+    if(posInX < 0) {
+        posInX = (posInX * -1) + 128;
+    }
+    if(posInY < 0) {
+        posInY = (posInY * -1) + 128;
+    }
+    int pos = 0;
+    pos |= (posInX & 0xff) << 0;
+    pos |= (posInY & 0xff) << 8;
+    
+    return pos;
+}
+/////////////////////////////////////////////////////////////////////////////////
+//////////////Get chunks position in world space x,y(8bits each)/////////////////
+glm::vec2 GetChunkPosition(int chunkData) {
+    glm::vec2 posVec;
+    posVec.x = MoveBits(8,0,chunkData);
+    posVec.y = MoveBits(8,8,chunkData);
+    if(posVec.x > 128) {
+        posVec.x = (posVec.x * -1) + 128;
+    };
+    if(posVec.y > 128) {
+        posVec.y = (posVec.y * -1) + 128;
+    };
+    return posVec;
+}
+/////////////////////////////////////////////////////////////////////////////////
 
+#pragma region build_shader {
 void Renderer::build_shaders(MTL::Device* device) {
     using NS::StringEncoding::UTF8StringEncoding;
 
@@ -39,7 +66,7 @@ void Renderer::build_shaders(MTL::Device* device) {
     std::string shaderStr = "";
 
     std::ifstream shadeingFile;
-    shadeingFile.open("/Users/adamkapsa/Documents/Python_bruh/cpp_metal_blockgame/last_push_metal-cmake-glfw/src/shaders.metal");//"./src/shaders.metal");
+    shadeingFile.open("./src/shaders.metal");//"./src/shaders.metal");
 
     if (!shadeingFile.is_open()) {
         std::cout << "Error: Couldnt be opened" << std::endl;
@@ -81,7 +108,9 @@ void Renderer::build_shaders(MTL::Device* device) {
     
     std::cout << "Shaders built" << std::endl;
 }
-
+#pragma endregion build_shader }
+#pragma region build_textures {
+/////////////////Load and create textures for copying to GPU///////////////////
 void Renderer::build_textures(MTL::Device* device) {
     int size_x = 0;
     int size_y = 0;
@@ -98,7 +127,7 @@ void Renderer::build_textures(MTL::Device* device) {
             if(texture_amount == 3) {
                 textureName += texture_end_names[j];
             }
-            
+
             std::string textureFullName = texturePath + textureName + textureFileType;
 
             const char* constTexturePath = textureFullName.c_str();
@@ -138,10 +167,15 @@ void Renderer::build_textures(MTL::Device* device) {
 
     std::cout << "Textures built" << std::endl;
 }
-
+#pragma endregion build_textures }
+/////////////////////////////////////////////////////////////////////////////////
+#include <fstream>
+#pragma region build_buffers {
 void Renderer::build_buffers(MTL::Device* device) {
     using simd::float2;
     using simd::float3;
+
+    ////////////////////////Block verts to GPU///////////////////////////////////////
 
     VertexData verts[] = {
         //                                                                               Texture
@@ -188,7 +222,7 @@ void Renderer::build_buffers(MTL::Device* device) {
         { { -0.5, -0.5, +0.5 }, {  0.f, -1.f,  0.f }, { 0.f, 0.f } },
         { { -0.5, -0.5, -0.5 }, {  0.f, -1.f,  0.f }, { 0.f, 1.f } }
     };
-    
+
     const size_t vertexDataSize = sizeof( verts );
 
     MTL::Buffer* pVertexBuffer = device->newBuffer( vertexDataSize, MTL::ResourceStorageModeManaged );
@@ -198,72 +232,169 @@ void Renderer::build_buffers(MTL::Device* device) {
     memcpy( _pVertexDataBuffer->contents(), verts, vertexDataSize );
 
     _pVertexDataBuffer->didModifyRange( NS::Range::Make( 0, _pVertexDataBuffer->length() ) );
-
+    /////////////////////////////////////////////////////////////////////////////////
+    /////////////Creating buffer for camera data and saveing them into it////////////
     const size_t cameraDataSize = kMaxFramesInFlight * sizeof( CameraData );
-    for ( size_t i = 0; i < kMaxFramesInFlight; ++i ) {
+    for ( size_t i = 0; i < kMaxFramesInFlight; i++ ) {
         _pCameraDataBuffer[ i ] = device->newBuffer( cameraDataSize, MTL::ResourceStorageModeManaged );
     }
+    /////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////Chunk creator//////////////////////////////////////
+    std::vector<Chunk> chunk = {};
+    chunk.resize(chunkCount);
 
-Blocks blocks[instanceCount];
+    std::memset(chunk.data(), 0, sizeof( Chunk )* chunk.size());
+    int chunkX[] = {-1,-1,-1,0,0,0,1,1,1};
+    int chunkY[] = {-1,0,1,-1,0,1,-1,0,1};
 
-std::memset(blocks, 0, sizeof(blocks));
-
-for(int i = 0; i < instanceCount; i++) {
-    blocks[i].block[0] = blockFace(glm::vec3 {31,-2,31}, 0, blockID);
-    blocks[i].block[1] = blockFace(glm::vec3 {31,-2,31}, 1, blockID);
-    blocks[i].block[2] = blockFace(glm::vec3 {31,-2,31}, 2, blockID);
-    blocks[i].block[3] = blockFace(glm::vec3 {31,-2,31}, 3, blockID);
-    blocks[i].block[4] = blockFace(glm::vec3 {31,-2,31}, 4, blockID);
-    blocks[i].block[5] = blockFace(glm::vec3 {31,-2,31}, 5, blockID);
-}
-
-// blockFace(glm::vec3 {0,1,0}, 0, blockID)
-// blockFace(glm::vec3 {0,1,0}, 1, blockID)
-// blockFace(glm::vec3 {0,1,0}, 2, blockID)
-// blockFace(glm::vec3 {0,1,0}, 3, blockID)
-// blockFace(glm::vec3 {0,1,0}, 4, blockID)
-// blockFace(glm::vec3 {0,1,0}, 5, blockID)
-
-// blockFace(glm::vec3 {0,0,0}, 0, blockID)
-// blockFace(glm::vec3 {0,0,0}, 1, blockID)
-// blockFace(glm::vec3 {0,0,0}, 2, blockID)
-// blockFace(glm::vec3 {0,0,0}, 3, blockID)
-// blockFace(glm::vec3 {0,0,0}, 4, blockID)
-// blockFace(glm::vec3 {0,0,0}, 5, blockID)
-
-
-                            
-
-    // ########### Block data print ###########
-    // for(int i = 0; i < 5;i++) {
-    //     for(int j = 0; j < 6; j++) {
-    //         std::cout << "Block pos x " << GetPos(Blocks[i][j]).x << " Block pos y " << GetPos(Blocks[i][j]).y << " Block pos z " << GetPos(Blocks[i][j]).z << GetPos(Blocks[i][j]).x << " Block ID " << GetBlockId(Blocks[i][j]) << std::endl;
+    // std::ofstream chunkFileWrite("map.txt");
+    // for(int k = 0; k < chunkCount; k++) {
+    //     chunkFileWrite << "-" << k << " ";
+    //     for(int i = 0; i < 256; i++) {
+    //         for(int l = 0; l < 16; l++) {
+    //             for(int m = 0; m < 16; m++) {
+    //                 int temp = blockFace(glm::vec3 {l, i,m}, blockID);
+    //                 // chunk[k].blocks[i][l][m] = temp;
+    //                 if(i == 255 && l == 15 && m > 14) {
+    //                     chunkFileWrite << temp;
+    //                 }
+    //                 else {
+    //                     chunkFileWrite << temp << " ";
+    //                 }
+    //             }
+    //         }
     //     }
-    //     std::cout << std::endl;
+    //     chunkFileWrite << "%\n";
     // }
+    // chunkFileWrite.close();
 
-    const size_t blockDataSize = sizeof( blocks );
+    std::ifstream chunkFileRead("map.txt");
 
-    MTL::Buffer* pArgumentBufferVertex = device->newBuffer(blockDataSize, MTL::ResourceStorageModeManaged);
+    std::string data;
+    bool startLoading = false;
+    std::vector<std::vector<int>> loadedChunks;
+    std::vector<int> loadedBlocks;
+    while(std::getline(chunkFileRead, data)) {
+        for(int i = 0; i < data.size(); i++) {
+            if(data[i] == '-') {
+                std::cout << "Loading chunk: " << data[i+1] << std::endl;
+                startLoading = true;
+            }
+            if(data[i] == '%') {
+                startLoading = false;
+                loadedChunks.push_back(loadedBlocks);
+                loadedBlocks.clear();
+            }
+            if(startLoading) {
+                if(data[i] == ' ') {
+                    std::string tempBlock = "";
+                    for(int j = 0; j < 7; j++) {
+                        tempBlock += data[i+j+1];
+                    }
+                    loadedBlocks.push_back(std::stoi(tempBlock));
+                }
+            }
+        }
+    }
+
+    for(int i = 0; i < loadedChunks.size(); i++) {
+        int i256 = 0;
+        int l16 = 0;
+        int m16 = 0;
+        for(int data : loadedChunks[i]) {
+            if(m16 == 16) {
+                m16 = 0;
+                l16++;
+            }
+            if(l16 == 16) {
+                l16 = 0;
+                i256++;
+            }
+            chunk[i].blocks[i256][l16][m16] = data;
+            std::cout << data << std::endl;
+            m16++;
+        }
+    }
+
+    NuberOfBlocksInChunk numberOfBlocksInChunk[1];
+    std::vector<Block> blocks;
+    bool side1 = false, side2 = false, side3 = false, side4 = false, top = false, bottom = false, checkBlock = false;
+    for(int k = 0; k < chunkCount; k++) {
+        for(int i = 0; i < 256; i++) {
+            for(int l = 0; l < 16; l++) {
+                for(int m = 0; m < 16; m++) {
+                        if(m != 15 && chunk[k].blocks[i][l][m+1] != 0) {
+                            side1 = true;
+                        }
+                        if(m != 0  && chunk[k].blocks[i][l][m-1] != 0) {
+                            side2 = true;
+                        }
+                        if(l != 15 && chunk[k].blocks[i][l+1][m] != 0) {
+                            side3 = true;
+                        }
+                        if(l != 0  && chunk[k].blocks[i][l-1][m] != 0) {
+                            side4 = true;
+                        }
+                        if(i != 255 && chunk[k].blocks[i+1][l][m] != 0) {
+                            top = true;
+                        }
+                        if(i != 0   && chunk[k].blocks[i-1][l][m] != 0) {
+                            bottom = true;
+                        }
+                        if(chunk[k].blocks[i][l][m] != 0) {
+                            checkBlock = true;
+                        }
+                    if(!side1 || !side2 || !side3 || !side4 || !top || !bottom) {
+                        if(checkBlock) {
+                            Block temp;
+                            temp.block = chunk[k].blocks[i][l][m];
+                            blocks.push_back(temp);
+                            blockCounter++;
+                        }
+                    }
+                    side1 = false, side2 = false, side3 = false, side4 = false, top = false, bottom = false, checkBlock = false;
+                }
+            }
+        }
+        numberOfBlocksInChunk[0].nuberOfBlocks[k] = blockCounter;
+        blockCounter = 0;
+    }
+    std::vector<ChunkToGPU> chunkToGPU = {};
+    chunkToGPU.resize(chunkCount);
+    std::memset(chunkToGPU.data(), 0, sizeof(ChunkToGPU) * chunkToGPU.size());
+
+    for(int c = 0; c < chunkCount; c++) {
+        for(int i = 0; i < numberOfBlocksInChunk[0].nuberOfBlocks[c]; i++) {
+            chunkToGPU[c].blocks[i] = blocks[i].block;
+        }
+        chunkToGPU[c].chunkPos = ChunkPosition(chunkX[c], chunkY[c]);
+    }
+    /////////////////////////////////////////////////////////////////////////////////
+    for(int i = 0; i < sizeof(numberOfBlocksInChunk[0].nuberOfBlocks)/sizeof(numberOfBlocksInChunk[0].nuberOfBlocks[0]); i++) {
+        blockCounter += numberOfBlocksInChunk[0].nuberOfBlocks[i];
+    }
+    std::cout << blockCounter << std::endl;
+    ////////////////////////////////Number of Blocks to GPU//////////////////////////
+    const size_t numberOfBlocksDataSize = sizeof(NuberOfBlocksInChunk);
+
+    MTL::Buffer* pNumberOfBlocksBufferVertex = device->newBuffer(numberOfBlocksDataSize, MTL::ResourceStorageModeManaged);
+
+    _pNumberOfBlocksBufferVertex = pNumberOfBlocksBufferVertex;
+
+    memcpy(_pNumberOfBlocksBufferVertex->contents(), numberOfBlocksInChunk, numberOfBlocksDataSize);
+
+    _pNumberOfBlocksBufferVertex->didModifyRange(NS::Range::Make(0, _pNumberOfBlocksBufferVertex->length()));
+    /////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////Chunk data to GPU////////////////////////////////
+    const size_t chunkDataSize = sizeof(ChunkToGPU) * chunkToGPU.size();
+
+    MTL::Buffer* pArgumentBufferVertex = device->newBuffer(chunkDataSize, MTL::ResourceStorageModeManaged);
 
     _pArgumentBufferVertex = pArgumentBufferVertex;
 
-    memcpy( _pArgumentBufferVertex->contents(), blocks,  blockDataSize);
+    memcpy(_pArgumentBufferVertex->contents(), chunkToGPU.data(), chunkDataSize);
 
-    _pArgumentBufferVertex->didModifyRange( NS::Range::Make( 0, _pArgumentBufferVertex->length() ) );
-
-
-
-    // const size_t vertexDataSize = sizeof( verts );
-
-    // MTL::Buffer* pVertexBuffer = device->newBuffer( vertexDataSize, MTL::ResourceStorageModeManaged );
-
-    // _pVertexDataBuffer = pVertexBuffer;
-
-    // memcpy( _pVertexDataBuffer->contents(), verts, vertexDataSize );
-
-    // _pVertexDataBuffer->didModifyRange( NS::Range::Make( 0, _pVertexDataBuffer->length() ) );
-    
+    _pArgumentBufferVertex->didModifyRange(NS::Range::Make(0, _pArgumentBufferVertex->length()));
 
     pArgumentEncoderFragment = pFragmentFunction->newArgumentEncoder(0);
 
@@ -271,22 +402,27 @@ for(int i = 0; i < instanceCount; i++) {
     pArgumentBufferFragment = device->newBuffer(argumentBufferLengthFragment, MTL::ResourceStorageModeManaged);
 
     pArgumentEncoderFragment->setArgumentBuffer(pArgumentBufferFragment, 0);
+    /////////////////////////////////////////////////////////////////////////////////
 
     std::cout << "Buffers built" << std::endl;
 }
+#pragma endregion build_buffers }
 
+#pragma region build_frame {
 void Renderer::build_frame(MTL::Device* device) {
-    for ( int i = 0; i < kMaxFramesInFlight; ++i ) {
-        _pFrameData[ i ]= device->newBuffer( sizeof( FrameData ), MTL::ResourceStorageModeManaged );
+    for(int i = 0; i < kMaxFramesInFlight; i++) {
+        _pFrameData[i] = device->newBuffer(sizeof(FrameData), MTL::ResourceStorageModeManaged);
     }
 
     std::cout << "Frame built" <<std::endl;
 }
+#pragma endregion build_frame }
 
+#pragma  region build_depth {
 void Renderer::build_spencil(MTL::Device* device) {
     MTL::DepthStencilDescriptor* depthStencilDescriptor = MTL::DepthStencilDescriptor::alloc()->init();
-    depthStencilDescriptor->setDepthCompareFunction( MTL::CompareFunction::CompareFunctionLess );
-    depthStencilDescriptor->setDepthWriteEnabled( true );
+    depthStencilDescriptor->setDepthCompareFunction(MTL::CompareFunction::CompareFunctionLess);
+    depthStencilDescriptor->setDepthWriteEnabled(true);
 
     pDepthStencilDescriptor = device->newDepthStencilState( depthStencilDescriptor );
 
@@ -294,7 +430,8 @@ void Renderer::build_spencil(MTL::Device* device) {
 
     std::cout << "Depth built" << std::endl;
 }
-
+#pragma endregion build_depth }
+#pragma region render {
 void Renderer::run() {
     using simd::float4x4;
     using simd::float4;
@@ -349,8 +486,6 @@ void Renderer::run() {
             dispatch_semaphore_signal( _semaphore );
         });
 
-            
-        // Update camera state:
         MTL::Buffer* pCameraDataBuffer = _pCameraDataBuffer[ _frame ];
         if (glfwGetWindowAttrib(window->glfwWindow, GLFW_FOCUSED)) {
             camera->update(pCameraDataBuffer,window->glfwWindow,window->window_size,delta_time, window);
@@ -361,36 +496,38 @@ void Renderer::run() {
         pCameraDataBuffer->didModifyRange( NS::Range::Make( 0, sizeof( CameraData ) ) );
 
         MTL::RenderPassDescriptor* pRenderPassDescriptor = MTL::RenderPassDescriptor::alloc()->init();
-        
-        
+
+        ///////////////////////////////////////Setup drawing plane//////////////////////////////////////////
         MTL::RenderPassColorAttachmentDescriptor* pRenderPassColorAttachmentDescriptor = pRenderPassDescriptor->colorAttachments()->object(0);
         pRenderPassColorAttachmentDescriptor->setTexture(context->pMetalDrawable->texture());
         pRenderPassColorAttachmentDescriptor->setLoadAction(MTL::LoadActionClear);
         pRenderPassColorAttachmentDescriptor->setClearColor(MTL::ClearColor(.2f, .2f, .3f, 1.0f));
         pRenderPassColorAttachmentDescriptor->setStoreAction(MTL::StoreActionStore);
-
-
+        ///////////////////////////////////////////////////////////////////////////////////////////////////
+        /////////////////////Create imGui frame for drawing//////////////////////////////
         ImGui::GetIO().DisplayFramebufferScale = ImVec2(2,2);
         ImGui::GetIO().DisplaySize = ImVec2(static_cast<float>(window->window_size.x), static_cast<float>(window->window_size.y));
 
         ImGui_ImplMetal_NewFrame(pRenderPassDescriptor);
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-
+        /////////////////////////////////////////////////////////////////////////////////
 
         MTL::RenderCommandEncoder* pCommandEncoder = pCommandBuffer->renderCommandEncoder( pRenderPassDescriptor );
 
         pCommandEncoder->setRenderPipelineState( pRenderPipelineState );
         pCommandEncoder->setDepthStencilState( pDepthStencilDescriptor );
 
-
+        //////////////////////////////////////Set buffers//////////////////////////////////////////
         pCommandEncoder->setVertexBuffer( _pVertexDataBuffer, 0, 0 );
         pCommandEncoder->setVertexBuffer( pCameraDataBuffer, 0, 1 );
         pCommandEncoder->setVertexBuffer( _pArgumentBufferVertex, 0, 2 );
+        pCommandEncoder->setVertexBuffer( _pNumberOfBlocksBufferVertex, 0, 3 );
 
         pArgumentEncoderFragment->setTextures( pTextureArr, textureRange);
         pCommandEncoder->setFragmentBuffer(pArgumentBufferFragment, 0, 0);
-
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //////////////Creating FPS counter or menu if active(imGui)////////////////
         if(window->menu) {
             if(window->options) {
                 ImGui::SetWindowSize("Options",ImVec2(menu_size.x, menu_size.y), 0);
@@ -419,6 +556,7 @@ void Renderer::run() {
                     window->cursor_setup(true, window->glfwWindow, window->window_size);
                 }
                 if(ImGui::Button("Quit", ImVec2(menu_size.x, menu_size.y/3))) {
+                    ///////////////////////Releasing everything created/////////////////////////////
                     pCommandEncoder->endEncoding();
                     pool->release();
                     context->commandQueue->release();
@@ -427,13 +565,13 @@ void Renderer::run() {
                     glfwTerminate();
                     context->device->release();
                     _pShaderLibrary->release();
-                    _pVertexColorsBuffer->release();
                     pRenderPipelineState->release();
 
                     ImGui_ImplMetal_Shutdown();
                     ImGui_ImplGlfw_Shutdown();
                     ImGui::DestroyContext();
                     exit(0);
+                    /////////////////////////////////////////////////////////////////////////////////
                 }
                 ImGui::End();
             }
@@ -445,15 +583,16 @@ void Renderer::run() {
             ImGui::Text("%.1fFPS, %.3fms", ImGui::GetIO().Framerate, 1000.0f / ImGui::GetIO().Framerate);
             ImGui::End();
         }
+        /////////////////////////////////////////////////////////////////////////////////
+        ////////////////////////////////Set some things and rende to screen////////////////////////////
         ImGui::Render();
+        pCommandEncoder->setCullMode(MTL::CullModeBack);
+        pCommandEncoder->setFrontFacingWinding(MTL::Winding::WindingCounterClockwise);
 
-        pCommandEncoder->setCullMode( MTL::CullModeBack );
-        pCommandEncoder->setFrontFacingWinding( MTL::Winding::WindingCounterClockwise );
+        pCommandEncoder->drawPrimitives(MTL::PrimitiveType::PrimitiveTypeTriangle, 0, 36, blockCounter);
 
-        pCommandEncoder->drawPrimitives(MTL::PrimitiveType::PrimitiveTypeTriangle, 0, 36, instanceCount);
-
-        pCommandEncoder->setCullMode( MTL::CullModeBack);
-        pCommandEncoder->setFrontFacingWinding( MTL::Winding::WindingClockwise );
+        pCommandEncoder->setCullMode(MTL::CullModeBack);
+        pCommandEncoder->setFrontFacingWinding(MTL::Winding::WindingClockwise);
         ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), pCommandBuffer, pCommandEncoder);
         
 
@@ -462,22 +601,26 @@ void Renderer::run() {
         pCommandBuffer->commit();
         pCommandBuffer->waitUntilCompleted();
 
-         pool->release();
+        pool->release();
+        /////////////////////////////////////////////////////////////////////////////////////////////
+        ////////////////////////////////Capture delta time////////////////////////////
         auto now = Clock::now();
         delta_time = std::chrono::duration<float>(now - prev_time).count();
         prev_time = now;
-        //std::cout << "\r" << (1.0f / delta_time) << std::flush;
+        /////////////////////////////////////////////////////////////////////////////
     }
+    ///////////////////////Releasing everything created hopefully////////////////////
     context->commandQueue->release();
     context->ns_window->release();
     context->metalLayer->release();
     glfwTerminate();
     context->device->release();
     _pShaderLibrary->release();
-    _pVertexColorsBuffer->release();
     pRenderPipelineState->release();
 
     ImGui_ImplMetal_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+    /////////////////////////////////////////////////////////////////////////////////
 }
+#pragma endregion render }
