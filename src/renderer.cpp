@@ -8,7 +8,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-// #include <FastNoise/FastNoise.h>
+#include <FastNoise/FastNoise.h>
 
 //////////////////Move bits in integer to get stored values//////////////////////
 float MoveBits(int bitAmount, int bitsRight, int data) {
@@ -46,8 +46,8 @@ int ChunkPosition(int posInX, int posInY) {
 //////////////Get chunks position in world space x,y(8bits each)/////////////////
 glm::vec2 GetChunkPosition(int chunkData) {
     glm::vec2 posVec;
-    posVec.x = MoveBits(8,0,chunkData);
-    posVec.y = MoveBits(8,8,chunkData);
+    posVec.y = MoveBits(8,0,chunkData);
+    posVec.x = MoveBits(8,8,chunkData);
     if(posVec.x > 128) {
         posVec.x = (posVec.x * -1) + 128;
     };
@@ -57,6 +57,28 @@ glm::vec2 GetChunkPosition(int chunkData) {
     return posVec;
 }
 /////////////////////////////////////////////////////////////////////////////////
+#pragma region generate_terrain {
+
+FastNoise::SmartNode<> Generate_Terrain() {
+    auto OpenSimplex = FastNoise::New<FastNoise::OpenSimplex2>();
+    auto FractalFBm = FastNoise::New<FastNoise::FractalFBm>();
+    FractalFBm->SetSource(OpenSimplex);
+    FractalFBm->SetGain(0.06f);
+    FractalFBm->SetOctaveCount(4);
+    FractalFBm->SetLacunarity(4.0f);
+    auto DomainScale = FastNoise::New<FastNoise::DomainScale>();
+    DomainScale->SetSource(FractalFBm);
+    DomainScale->SetScale(1.64f);//0.86
+    auto PosationOutput = FastNoise::New<FastNoise::PositionOutput>();
+    PosationOutput->Set<FastNoise::Dim::Y>(6.72f);
+    auto add = FastNoise::New<FastNoise::Add>();
+    add->SetLHS(DomainScale);
+    add->SetRHS(PosationOutput);
+
+    return add;
+}
+
+#pragma endregion generate_terrain }
 
 #pragma region build_shader {
 void Renderer::build_shaders(MTL::Device* device) {
@@ -244,41 +266,105 @@ void Renderer::build_buffers(MTL::Device* device) {
     chunk.resize(chunkCount);
 
     std::memset(chunk.data(), 0, sizeof( Chunk )* chunk.size());
-    int chunkX[] = {-1,-1,-1,0,0,0,1,1,1};
-    int chunkY[] = {-1,0,1,-1,0,1,-1,0,1};
 
-    // std::ofstream chunkFileWrite("map.txt");
-    // for(int k = 0; k < chunkCount; k++) {
-    //     chunkFileWrite << "-" << k << " ";
-    //     for(int i = 0; i < 256; i++) {
-    //         for(int l = 0; l < 16; l++) {
-    //             for(int m = 0; m < 16; m++) {
-    //                 int temp = blockFace(glm::vec3 {l, i,m}, blockID);
-    //                 // chunk[k].blocks[i][l][m] = temp;
-    //                 if(i == 255 && l == 15 && m > 14) {
-    //                     chunkFileWrite << temp;
-    //                 }
-    //                 else {
-    //                     chunkFileWrite << temp << " ";
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     chunkFileWrite << "%\n";
-    // }
-    // chunkFileWrite.close();
+    ////////////////////////////////////////Generate new map/////////////////////////////////////////
+    bool loadMap;
+    std::ifstream mapFileTest(mapFileName + ".txt");
+    if(mapFileTest.good()) {
+        loadMap = true;
+    }
+    else {
+        loadMap = false;
+    }
+    mapFileTest.close();
+    if(!loadMap) {
+        auto generator = Generate_Terrain();
+        std::vector<float> noiseMap(256 * 16 * 16);
+        std::vector<glm::vec2> positions;
+        int count = 0;
 
-    std::ifstream chunkFileRead("map.txt");
+        for(int i = 0; i < chunkLine;i++) {
+            for(int j = 0; j < chunkLine; j++) {
+                glm::vec2 position = glm::vec2{i, j};
+                positions.push_back(position);
+                generator->GenUniformGrid3D(noiseMap.data(), 16 * position.x, -20,16 * position.y, 16, 256, 16, 0.01f, 1337);
+                // std::cout << position.x << " " << position.y << std::endl;
+                int index = 0;
+                for(int x = 0; x < 16; x++) {
+                    for(int y = 0; y < 256; y++) {
+                        for(int z = 0; z < 16; z++) {
+                            if(noiseMap[index] >= 0.0f) {
+                                chunk[count].blocks[y][x][z] = 0;
+                            }else {
+                                if(noiseMap[index + 16] >= 0) {
+                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 4);
+                                } 
+                                else if(noiseMap[index + 80] >= 0) {
+                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 3);
+                                } 
+                                else if(noiseMap[index] < 0) {
+                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 15);
+                                }
+                            }
+                            index++;
+                        }
+                    }
+                }
+                count++;
+            }
+        }
+
+        std::ofstream chunkFileWrite(mapFileName +".txt");
+        for(int k = 0; k < chunkCount; k++) {
+            chunkFileWrite << "-" << k << "~";
+            chunkFileWrite << ChunkPosition(positions[k].x, positions[k].y) << " ";
+            for(int i = 0; i < 256; i++) {
+                for(int l = 0; l < 16; l++) {
+                    for(int m = 0; m < 16; m++) {
+                        int temp = chunk[k].blocks[i][l][m];
+                        if(i == 255 && l == 15 && m > 14) {
+                            chunkFileWrite << temp;
+                        }
+                        else {
+                            chunkFileWrite << temp << " ";
+                        }
+                    }
+                }
+            }
+            chunkFileWrite << "%\n";
+        }
+        chunkFileWrite.close();
+    }
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
+    std::ifstream chunkFileRead(mapFileName + ".txt");
 
     std::string data;
     bool startLoading = false;
     std::vector<std::vector<int>> loadedChunks;
     std::vector<int> loadedBlocks;
+    std::vector<int> loadedChunkPos;
     while(std::getline(chunkFileRead, data)) {
         for(int i = 0; i < data.size(); i++) {
             if(data[i] == '-') {
-                std::cout << "Loading chunk: " << data[i+1] << std::endl;
+                int counter = 1;
+                std::cout << "Loading chunk: ";
+                while(data[counter] != '~') {
+                    std::cout << data[i+counter];
+                    counter++;
+                }
+                std::cout << std::endl;
                 startLoading = true;
+            }
+            if(data[i] == '~') {
+                std::string tempPos = "";
+                for(int f = 0; f < 32; f++) {
+                    if(data[i+f+1] == ' ') {
+                        break;
+                    }
+                    tempPos += data[i+f+1];
+                }
+                loadedChunkPos.push_back(std::stoi(tempPos));
             }
             if(data[i] == '%') {
                 startLoading = false;
@@ -311,39 +397,44 @@ void Renderer::build_buffers(MTL::Device* device) {
                 i256++;
             }
             chunk[i].blocks[i256][l16][m16] = data;
-            std::cout << data << std::endl;
             m16++;
         }
     }
+    chunkFileRead.close();
 
-    NuberOfBlocksInChunk numberOfBlocksInChunk[1];
+    NuberOfBlocksInChunk numberOfBlocksInChunk;
     std::vector<Block> blocks;
     bool side1 = false, side2 = false, side3 = false, side4 = false, top = false, bottom = false, checkBlock = false;
     for(int k = 0; k < chunkCount; k++) {
         for(int i = 0; i < 256; i++) {
             for(int l = 0; l < 16; l++) {
                 for(int m = 0; m < 16; m++) {
-                        if(m != 15 && chunk[k].blocks[i][l][m+1] != 0) {
-                            side1 = true;
-                        }
-                        if(m != 0  && chunk[k].blocks[i][l][m-1] != 0) {
-                            side2 = true;
-                        }
-                        if(l != 15 && chunk[k].blocks[i][l+1][m] != 0) {
-                            side3 = true;
-                        }
-                        if(l != 0  && chunk[k].blocks[i][l-1][m] != 0) {
-                            side4 = true;
-                        }
-                        if(i != 255 && chunk[k].blocks[i+1][l][m] != 0) {
-                            top = true;
-                        }
-                        if(i != 0   && chunk[k].blocks[i-1][l][m] != 0) {
-                            bottom = true;
-                        }
-                        if(chunk[k].blocks[i][l][m] != 0) {
-                            checkBlock = true;
-                        }
+                    if(m != 15 && chunk[k].blocks[i][l][m+1] != 0) {
+                        side1 = true;
+                    }
+                    if(m != 0  && chunk[k].blocks[i][l][m-1] != 0) {
+                        side2 = true;
+                    }
+                    if(l != 15 && chunk[k].blocks[i][l+1][m] != 0) {
+                        side3 = true;
+                    }
+                    if(l != 0  && chunk[k].blocks[i][l-1][m] != 0) {
+                        side4 = true;
+                    }
+                    if(i != 255 && chunk[k].blocks[i+1][l][m] != 0) {
+                        top = true;
+                    }
+                    if(i != 0 && chunk[k].blocks[i-1][l][m] != 0) {
+                        bottom = true;
+                    }
+                    /////deletes lowest layer
+                    if(i == 0 && chunk[k].blocks[i+1][l][m] != 0) {
+                        bottom = true;
+                    }
+                    /////////////////////////
+                    if(chunk[k].blocks[i][l][m] != 0) {
+                        checkBlock = true;
+                    }
                     if(!side1 || !side2 || !side3 || !side4 || !top || !bottom) {
                         if(checkBlock) {
                             Block temp;
@@ -351,27 +442,29 @@ void Renderer::build_buffers(MTL::Device* device) {
                             blocks.push_back(temp);
                             blockCounter++;
                         }
-                    }
+                    }//std::unordered_map<class Key, class Tp>
                     side1 = false, side2 = false, side3 = false, side4 = false, top = false, bottom = false, checkBlock = false;
                 }
             }
         }
-        numberOfBlocksInChunk[0].nuberOfBlocks[k] = blockCounter;
+        numberOfBlocksInChunk.nuberOfBlocks[k] = blockCounter;
         blockCounter = 0;
     }
     std::vector<ChunkToGPU> chunkToGPU = {};
     chunkToGPU.resize(chunkCount);
     std::memset(chunkToGPU.data(), 0, sizeof(ChunkToGPU) * chunkToGPU.size());
 
+    int aijfgoiusdagfui = 0;
     for(int c = 0; c < chunkCount; c++) {
-        for(int i = 0; i < numberOfBlocksInChunk[0].nuberOfBlocks[c]; i++) {
-            chunkToGPU[c].blocks[i] = blocks[i].block;
+        for(int i = 0; i < numberOfBlocksInChunk.nuberOfBlocks[c]; i++) {
+            chunkToGPU[c].blocks[i] = blocks[i + aijfgoiusdagfui].block;
         }
-        chunkToGPU[c].chunkPos = ChunkPosition(chunkX[c], chunkY[c]);
+        aijfgoiusdagfui += numberOfBlocksInChunk.nuberOfBlocks[c];
+        chunkToGPU[c].chunkPos = loadedChunkPos[c];
     }
     /////////////////////////////////////////////////////////////////////////////////
-    for(int i = 0; i < sizeof(numberOfBlocksInChunk[0].nuberOfBlocks)/sizeof(numberOfBlocksInChunk[0].nuberOfBlocks[0]); i++) {
-        blockCounter += numberOfBlocksInChunk[0].nuberOfBlocks[i];
+    for(int i = 0; i < sizeof(numberOfBlocksInChunk.nuberOfBlocks)/sizeof(numberOfBlocksInChunk.nuberOfBlocks[0]); i++) {
+        blockCounter += numberOfBlocksInChunk.nuberOfBlocks[i];
     }
     std::cout << blockCounter << std::endl;
     ////////////////////////////////Number of Blocks to GPU//////////////////////////
@@ -381,7 +474,7 @@ void Renderer::build_buffers(MTL::Device* device) {
 
     _pNumberOfBlocksBufferVertex = pNumberOfBlocksBufferVertex;
 
-    memcpy(_pNumberOfBlocksBufferVertex->contents(), numberOfBlocksInChunk, numberOfBlocksDataSize);
+    memcpy(_pNumberOfBlocksBufferVertex->contents(), &numberOfBlocksInChunk, numberOfBlocksDataSize);
 
     _pNumberOfBlocksBufferVertex->didModifyRange(NS::Range::Make(0, _pNumberOfBlocksBufferVertex->length()));
     /////////////////////////////////////////////////////////////////////////////////

@@ -3,8 +3,7 @@ using namespace metal;
 
 struct v2f {
     float4 position [[position]];
-    float3 normal;
-    half3 color;
+    float color;
     float2 texcoord;
     int side;
 };
@@ -43,8 +42,8 @@ float MoveBits(int bitAmount, int bitsRight, int data) {
 
 float2 GetChunkPosition(int pos) {
     float2 posVec;
-    posVec.x = MoveBits(8,0,pos);
-    posVec.y = MoveBits(8,8,pos);
+    posVec.y = MoveBits(8,0,pos);
+    posVec.x = MoveBits(8,8,pos);
     if(posVec.x > 128) {
         posVec.x = (posVec.x * -1) + 128;
     };
@@ -81,14 +80,18 @@ v2f vertex vertexMain(  device const VertexData* vertexData [[buffer(0)]],
     v2f o;
     int blockNumber = 0;
     int chunkIndex = 0;
+    int blockIndex = 0;
     while(instance > blockNumber) {
-        blockNumber = blockNumber + nuberOfBlocksInChunk[0].nuberOfBlocks[chunkIndex];
-        chunkIndex++;
+        if(blockNumber + nuberOfBlocksInChunk->nuberOfBlocks[chunkIndex] > instance) {
+            break;
+        }
+        else {
+            blockNumber = blockNumber + nuberOfBlocksInChunk->nuberOfBlocks[chunkIndex];
+            chunkIndex++;
+        }
     }
 
-    chunkIndex -= 1;
-    blockNumber = blockNumber - nuberOfBlocksInChunk[0].nuberOfBlocks[chunkIndex];
-    int blockIndex = instance - blockNumber;
+    blockIndex = instance - blockNumber;
     const device Chunk& chunk = chunkIn[chunkIndex];
 
     int block_sideID = counter/6;
@@ -141,4 +144,5 @@ half4 fragment fragmentMain(v2f in [[stage_in]], device Textures &textures [[buf
     if(texel.a < 0.1) {discard_fragment();}
 
     return half4(texel);
+    // return half4(half3(in.color,in.color,in.color), 1.0f);
 }

@@ -27,7 +27,6 @@ struct Renderer {
     void build_spencil(MTL::Device* device);
     void build_textures(MTL::Device* device);
     void run();
-    // int blockAmount = 4 * 4;
     static constexpr size_t kMaxFramesInFlight = 3;
     MTL::RenderPipelineState* pRenderPipelineState;
     MTL::Buffer* _pVertexColorsBuffer;
@@ -51,9 +50,9 @@ struct Renderer {
     bool* p_open;
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration;
 
-
-    int blockID = 4;
-    int chunkCount = 2;
+    int chunkLine = 4;
+    std::string mapFileName = "map" + std::to_string(chunkLine) + "x" + std::to_string(chunkLine);
+    int chunkCount = chunkLine * chunkLine;
     int instanceCount = 16*16*256;
     int blockCounter = 0;
 };

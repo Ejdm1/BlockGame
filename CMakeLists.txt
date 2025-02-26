@@ -4,8 +4,8 @@ project(test VERSION 1.0.0)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(FetchContent)
 
-# FetchContent_Declare(FastNoise2 GIT_REPOSITORY https://github.com/Auburn/FastNoise2.git)
-# FetchContent_MakeAvailable(FastNoise2)
+FetchContent_Declare(FastNoise2 GIT_REPOSITORY https://github.com/Auburn/FastNoise2.git)
+FetchContent_MakeAvailable(FastNoise2)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -42,5 +42,5 @@ target_link_libraries(test PRIVATE "-framework Metal"
                                    "-framework QuartzCore"
                                    "-framework GameController")
 target_link_libraries(test PRIVATE glfw glm::glm)
-# target_link_libraries(test PRIVATE FastNoise2)
+target_link_libraries(test PRIVATE FastNoise2)
 target_compile_features(test PRIVATE cxx_std_20)
