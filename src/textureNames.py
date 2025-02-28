@@ -26,12 +26,15 @@ outStr = ""
 enterCount = 0;
 
 for i in range(0,len(files)):
+    if i == 0:
+        outStr += ","
     enterCount += 1
     outStr = outStr + '"' +files[i] + '_block"'
     if i != (len(files)-1):
-        outStr += ", "
-    if enterCount % 10 == 0:
-        outStr += "\n"
+        outStr += ","
+outStr += "%"
+
+print(enterCount)
 
 file = open("texture_names.txt", "a")
 file.write(outStr)
@@ -71,11 +74,10 @@ for i in range(len(files)):
     else:
         outStr = outStr + str(counter)
     if i != (len(files)-1):
-        outStr += ", "
-    if enterCount % 10 == 0:
-        outStr += "\n"
+        outStr += ","
     deleteOne = False
     counter = 1
+outStr += "%"
 
 file = open("texture_amounts.txt", "a")
 file.write(outStr)
@@ -114,15 +116,15 @@ for j in range(len(files)):
 open("texture_real_index.txt", "w").close()
 
 outStr = ""
-enterCount = 0;
+enterCount = 0
 
 for i in range(0,len(indexes)):
     enterCount += 1
     outStr = outStr + str(indexes[i])
     if i != (len(indexes)-1):
-        outStr += ", "
-    if enterCount % 10 == 0:
-        outStr += "\n"
+        outStr += ","
+
+outStr += "%"
 
 file = open("texture_real_index.txt", "a")
 file.write(outStr)

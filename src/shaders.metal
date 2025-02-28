@@ -30,7 +30,15 @@ struct Textures {
 };
 
 struct NuberOfBlocksInChunk {
-    int nuberOfBlocks[256];
+    int nuberOfBlocks[1024];
+};
+
+struct Texture_real_index {
+    int texture_real_index[128];
+};
+
+struct Texture_side_amounts {
+    int texture_side_amounts[128];
 };
 
 float MoveBits(int bitAmount, int bitsRight, int data) {
@@ -61,20 +69,12 @@ int GetBlockId(int data) {
     return MoveBits(14, 18, data);
 }
 
-constant int texture_side_amounts[16] = {
-1, 1, 1, 1, 3, 1, 1, 1, 1, 3, 
-1, 1, 1, 3, 1, 1
-};
-
-constant int texture_real_index[16] = {
-0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 
-14, 15, 16, 17, 20, 21
-};
-
 v2f vertex vertexMain(  device const VertexData* vertexData [[buffer(0)]],
                         device const CameraData& cameraData [[buffer(1)]],
                         device const  Chunk* chunkIn [[buffer(2)]],
                         device const NuberOfBlocksInChunk* nuberOfBlocksInChunk [[buffer(3)]],
+                        device const Texture_real_index* texture_real_index [[buffer(4)]],
+                        device const Texture_side_amounts* texture_side_amounts [[buffer(5)]],
                         uint counter [[vertex_id]],
                         uint instance [[instance_id]]) {
     v2f o;
@@ -101,35 +101,35 @@ v2f vertex vertexMain(  device const VertexData* vertexData [[buffer(0)]],
     const device VertexData& vd = vertexData[counter];
     float3 blockPos = GetPos(chunk.blocks[blockIndex]);
     float2 chunkPos = GetChunkPosition(chunk.chunkPos);
-    float4 pos = float4(vd.position + blockPos + float3(0,-127,0) + float3(chunkPos.x * 16,0,chunkPos.y * 16), 1.0);
+    float4 pos = float4(vd.position + blockPos + float3(0,-50,0) + float3(chunkPos.x * 16,0,chunkPos.y * 16), 1.0);
     o.position = cameraData.perspectiveTransform * cameraData.worldTransform * pos;
     o.texcoord = vd.texcoord.xy;
 
-    switch (texture_side_amounts[block_ID]) {
+    switch (texture_side_amounts->texture_side_amounts[block_ID]) {
         case 3:
             switch (block_sideID) {
                 case 0:
-                    o.side = texture_real_index[block_ID]+1;
+                    o.side = texture_real_index->texture_real_index[block_ID]+1;
                     break;
                 case 1:
-                    o.side = texture_real_index[block_ID]+1;
+                    o.side = texture_real_index->texture_real_index[block_ID]+1;
                     break;
                 case 2:
-                    o.side = texture_real_index[block_ID]+1;
+                    o.side = texture_real_index->texture_real_index[block_ID]+1;
                     break;
                 case 3:
-                    o.side = texture_real_index[block_ID]+1;
+                    o.side = texture_real_index->texture_real_index[block_ID]+1;
                     break;
                 case 4:
-                    o.side = texture_real_index[block_ID]+2;
+                    o.side = texture_real_index->texture_real_index[block_ID]+2;
                     break;
                 case 5:
-                    o.side = texture_real_index[block_ID];
+                    o.side = texture_real_index->texture_real_index[block_ID];
                     break;
             }
             break;
         case 1:
-            o.side = texture_real_index[block_ID];
+            o.side = texture_real_index->texture_real_index[block_ID];
             break;
     }
 
@@ -137,12 +137,11 @@ v2f vertex vertexMain(  device const VertexData* vertexData [[buffer(0)]],
 }
 
 half4 fragment fragmentMain(v2f in [[stage_in]], device Textures &textures [[buffer(0)]]) {
-    constexpr sampler s(address::repeat, mag_filter::nearest, min_filter::linear);
+    constexpr sampler s(address::repeat, mag_filter::nearest, min_filter::linear, mip_filter::linear);
 
     half4 texel = textures.pTextureArr[in.side].sample(s, in.texcoord);
 
     if(texel.a < 0.1) {discard_fragment();}
 
     return half4(texel);
-    // return half4(half3(in.color,in.color,in.color), 1.0f);
 }

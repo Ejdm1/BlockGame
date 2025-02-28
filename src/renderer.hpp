@@ -27,6 +27,7 @@ struct Renderer {
     void build_spencil(MTL::Device* device);
     void build_textures(MTL::Device* device);
     void run();
+    void Regenerate();
     static constexpr size_t kMaxFramesInFlight = 3;
     MTL::RenderPipelineState* pRenderPipelineState;
     MTL::Buffer* _pVertexColorsBuffer;
@@ -42,6 +43,8 @@ struct Renderer {
     MTL::Buffer* pArgumentBufferFragment;
     MTL::Buffer* _pArgumentBufferVertex;
     MTL::Buffer* _pNumberOfBlocksBufferVertex;
+    MTL::Buffer* _ptexture_side_amountsBufferVertex;
+    MTL::Buffer* _ptexture_real_indexBufferVertex;
     MTL::Texture* pTextureArr[128];
     MTL::Function* pFragmentFunction;
     MTL::Function* pVertexFunction;
@@ -50,27 +53,25 @@ struct Renderer {
     bool* p_open;
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration;
 
-    int chunkLine = 4;
+    bool regenerate = false;
+    int chunkLine = 16;
     std::string mapFileName = "map" + std::to_string(chunkLine) + "x" + std::to_string(chunkLine);
     int chunkCount = chunkLine * chunkLine;
     int instanceCount = 16*16*256;
     int blockCounter = 0;
 };
 
-static const std::vector<std::string> texture_names = {
-"coalore_block", "cobblestone_block", "diamondore_block", "dirt_block", "grass_block", "gravel_block", "ice_block", "ironore_block", "leavesoak_block", "logoak_block", 
-"glass_block", "planksoak_block", "sand_block", "sandstone_block", "snow_block", "stone_block"
-};
-
-static const int texture_side_amounts[16] = {
-1, 1, 1, 1, 3, 1, 1, 1, 1, 3, 
-1, 1, 1, 3, 1, 1
-};
-
 static const std::vector<std::string> texture_end_names = {
     "_bottom",
     "_side",
     "_top"
+};
+struct Texture_side_amounts {
+    int texture_side_amounts[128] = {};
+};
+
+struct Texture_real_index {
+    int texture_real_index[128] = {};
 };
 
 struct FrameData {
@@ -98,7 +99,7 @@ struct ChunkToGPU {
 };
 
 struct NuberOfBlocksInChunk {
-    int nuberOfBlocks[256] = {};
+    int nuberOfBlocks[1024] = {};
 };
 
 //Saveing block data into single int x,y,z,blockID(4bits x, 8bits y, 4bits z, 14bits blockID)//

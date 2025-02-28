@@ -2,6 +2,7 @@
 #include "camera.hpp"
 #include "context.hpp"
 #include "window.hpp"
+#include <chrono>
 
 #include "math.hpp"
 
@@ -134,14 +135,89 @@ void Renderer::build_shaders(MTL::Device* device) {
 #pragma region build_textures {
 /////////////////Load and create textures for copying to GPU///////////////////
 void Renderer::build_textures(MTL::Device* device) {
+    Texture_side_amounts texture_side_amounts;
+    Texture_real_index texture_real_index;
+    std::vector<std::string> texture_names = {};
+
+    std::ifstream textureNamesFile("texture_names.txt");
+    std::string textureNameData;
+    while(std::getline(textureNamesFile, textureNameData)) {
+        for(int i = 0; i < textureNameData.size(); i++) {
+            if(textureNameData[i] == '%') {
+                break;
+            }
+
+            if(textureNameData[i] == ',') {
+                int counter = 0;
+                std::string outStr = "";
+                while(counter < textureNameData.size()) {
+                    if(textureNameData[i + counter + 1] == ',' || textureNameData[i + counter + 1] == '%') {
+                        break;
+                    }
+                    if(textureNameData[i + counter + 1] != '"') {
+                        outStr += textureNameData[i + counter + 1];
+                    }
+                    counter++;
+                }
+                if(outStr != "") {
+                    texture_names.push_back(outStr);
+                }
+            }
+        } 
+    }
+    textureNamesFile.close();
+
     int size_x = 0;
     int size_y = 0;
     int num_channels = 0;
     int indexCounter = 0;
     int count = 1;
 
+    std::ifstream textureAmountsFile("texture_amounts.txt");
+    std::string indexAmountsData;
+    int indexAmountsCounter = 0;
+    while(std::getline(textureAmountsFile, indexAmountsData)) {
+        for(int i = 0; i < indexAmountsData.size(); i++) {
+            if(indexAmountsData[i] == '%') {
+                break;
+            }
+
+            if(indexAmountsData[i] != ',') {
+                int to_int = indexAmountsData[i] - '0';
+                texture_side_amounts.texture_side_amounts[indexAmountsCounter] = to_int;
+                indexAmountsCounter++;
+            }
+        } 
+    }
+    textureAmountsFile.close();
+
+    std::ifstream textureRealIndexFile("texture_real_index.txt");
+    std::string indexRealData;
+    int indexRealCounter = 0;
+    while(std::getline(textureRealIndexFile, indexRealData)) {
+        for(int i = 0; i < indexRealData.size(); i++) {
+            if(indexRealData[i] == ',') {
+                std::string temp;
+                temp += indexRealData[i+1];
+                if(indexRealData[i+2] != ',' && indexRealData[i+2] != '%') {
+                    temp += indexRealData[i+2];
+                }
+                texture_real_index.texture_real_index[indexRealCounter+1] = std::stoi(temp);
+                indexRealCounter++;
+            }
+            if(indexRealData[i] != ',') {
+                
+            }
+        }
+    }
+    textureRealIndexFile.close();
+
+    // for(int i = 0; i < texture_names.size(); i++) {
+    //     std::cout << texture_names[i] << " " << texture_side_amounts.texture_side_amounts[i] << " " << texture_real_index.texture_real_index[i] << std::endl;
+    // }
+
     for (int i = 0; i < texture_names.size(); i++) {
-        int texture_amount = texture_side_amounts[i];
+        int texture_amount = texture_side_amounts.texture_side_amounts[i];
         std::string textureFileType = ".png";
         std::string texturePath = "./src/Textures/";
         for(int j = 0; j < texture_amount;j++) {
@@ -186,6 +262,29 @@ void Renderer::build_textures(MTL::Device* device) {
             count++;
         }
     }
+
+    ///////////////////////////texture_side_amounts to GPU////////////////////////////
+    const size_t texture_side_amountsDataSize = sizeof(Texture_side_amounts);
+
+    MTL::Buffer* ptexture_side_amountsBufferVertex = device->newBuffer(texture_side_amountsDataSize, MTL::ResourceStorageModeManaged);
+
+    _ptexture_side_amountsBufferVertex = ptexture_side_amountsBufferVertex;
+
+    memcpy(_ptexture_side_amountsBufferVertex->contents(), &texture_side_amounts, texture_side_amountsDataSize);
+
+    _pNumberOfBlocksBufferVertex->didModifyRange(NS::Range::Make(0, _ptexture_side_amountsBufferVertex->length()));
+    //////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////texture_real_index to GPU//////////////////////////////
+    const size_t texture_real_indexDataSize = sizeof(Texture_real_index);
+
+    MTL::Buffer* ptexture_real_indexBufferVertex = device->newBuffer(texture_real_indexDataSize, MTL::ResourceStorageModeManaged);
+
+    _ptexture_real_indexBufferVertex = ptexture_real_indexBufferVertex;
+
+    memcpy(_ptexture_real_indexBufferVertex->contents(), &texture_real_index, texture_real_indexDataSize);
+
+    _ptexture_real_indexBufferVertex->didModifyRange(NS::Range::Make(0, _ptexture_real_indexBufferVertex->length()));
+    //////////////////////////////////////////////////////////////////////////////////
 
     std::cout << "Textures built" << std::endl;
 }
@@ -269,6 +368,7 @@ void Renderer::build_buffers(MTL::Device* device) {
 
     ////////////////////////////////////////Generate new map/////////////////////////////////////////
     bool loadMap;
+    int seed;
     std::ifstream mapFileTest(mapFileName + ".txt");
     if(mapFileTest.good()) {
         loadMap = true;
@@ -277,33 +377,42 @@ void Renderer::build_buffers(MTL::Device* device) {
         loadMap = false;
     }
     mapFileTest.close();
-    if(!loadMap) {
+    if(!loadMap || regenerate) {
+        regenerate = false;
         auto generator = Generate_Terrain();
-        std::vector<float> noiseMap(256 * 16 * 16);
+        std::vector<float> noiseMap(128 * 16 * 16);
         std::vector<glm::vec2> positions;
         int count = 0;
 
+        srand(time(0));
+        seed = rand() % 10000;
+
         for(int i = 0; i < chunkLine;i++) {
             for(int j = 0; j < chunkLine; j++) {
-                glm::vec2 position = glm::vec2{i, j};
+                glm::vec2 position = glm::vec2{i - chunkLine/2, j - chunkLine/2};
                 positions.push_back(position);
-                generator->GenUniformGrid3D(noiseMap.data(), 16 * position.x, -20,16 * position.y, 16, 256, 16, 0.01f, 1337);
-                // std::cout << position.x << " " << position.y << std::endl;
+                // auto generateStart = std::chrono::high_resolution_clock::now();
+                generator->GenUniformGrid3D(noiseMap.data(), 16 * position.x, -20,16 * position.y, 16, 128, 16, 0.01f, seed);
+                // auto generateEnd = std::chrono::high_resolution_clock::now();
+                // auto duration = duration_cast<std::chrono::milliseconds>(generateEnd - generateStart);
+                // std::cout << "Generating chunk number: " << count << " " << duration.count() << std::endl;
+                std::cout << "Generating chunk number: " << count << std::endl;
                 int index = 0;
+                // auto generatorStart = std::chrono::high_resolution_clock::now();
                 for(int x = 0; x < 16; x++) {
-                    for(int y = 0; y < 256; y++) {
+                    for(int y = 0; y < 128; y++) {
                         for(int z = 0; z < 16; z++) {
                             if(noiseMap[index] >= 0.0f) {
                                 chunk[count].blocks[y][x][z] = 0;
                             }else {
                                 if(noiseMap[index + 16] >= 0) {
-                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 4);
+                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 8);
                                 } 
                                 else if(noiseMap[index + 80] >= 0) {
-                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 3);
+                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 5);
                                 } 
                                 else if(noiseMap[index] < 0) {
-                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 15);
+                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 20);
                                 }
                             }
                             index++;
@@ -311,18 +420,24 @@ void Renderer::build_buffers(MTL::Device* device) {
                     }
                 }
                 count++;
+                // auto generatorEnd = std::chrono::high_resolution_clock::now();
+                // auto duration1 = duration_cast<std::chrono::milliseconds>(generatorEnd - generatorStart);
+                // std::cout << "Setting into chunks time: " << duration1.count() << std::endl;
             }
         }
 
+        // auto generatorStart = std::chrono::high_resolution_clock::now();
+
         std::ofstream chunkFileWrite(mapFileName +".txt");
+        chunkFileWrite << seed;
         for(int k = 0; k < chunkCount; k++) {
             chunkFileWrite << "-" << k << "~";
             chunkFileWrite << ChunkPosition(positions[k].x, positions[k].y) << " ";
-            for(int i = 0; i < 256; i++) {
+            for(int i = 0; i < 128; i++) {
                 for(int l = 0; l < 16; l++) {
                     for(int m = 0; m < 16; m++) {
                         int temp = chunk[k].blocks[i][l][m];
-                        if(i == 255 && l == 15 && m > 14) {
+                        if(i == 127 && l == 15 && m > 14) {
                             chunkFileWrite << temp;
                         }
                         else {
@@ -334,6 +449,10 @@ void Renderer::build_buffers(MTL::Device* device) {
             chunkFileWrite << "%\n";
         }
         chunkFileWrite.close();
+        // auto generatorEnd = std::chrono::high_resolution_clock::now();
+        // auto duration = duration_cast<std::chrono::milliseconds>(generatorEnd - generatorStart);
+        // std::cout << "Saving time: " << duration.count() << std::endl;
+
     }
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -344,47 +463,59 @@ void Renderer::build_buffers(MTL::Device* device) {
     std::vector<std::vector<int>> loadedChunks;
     std::vector<int> loadedBlocks;
     std::vector<int> loadedChunkPos;
+    bool start = false;
+    std::string seedLoading = "";
     while(std::getline(chunkFileRead, data)) {
         for(int i = 0; i < data.size(); i++) {
             if(data[i] == '-') {
-                int counter = 1;
-                std::cout << "Loading chunk: ";
-                while(data[counter] != '~') {
-                    std::cout << data[i+counter];
-                    counter++;
-                }
-                std::cout << std::endl;
-                startLoading = true;
+                start = true;
             }
-            if(data[i] == '~') {
-                std::string tempPos = "";
-                for(int f = 0; f < 32; f++) {
-                    if(data[i+f+1] == ' ') {
-                        break;
+            if(!start) {
+                seedLoading += data[i];
+            }
+            if(start) {
+                if(data[i] == '-') {
+                    int counter = 1;
+                    std::cout << "Loading chunk: ";
+                    while(data[i + counter] != '~') {
+                        std::cout << data[i+counter];
+                        counter++;
                     }
-                    tempPos += data[i+f+1];
+                    std::cout << std::endl;
+                    startLoading = true;
                 }
-                loadedChunkPos.push_back(std::stoi(tempPos));
-            }
-            if(data[i] == '%') {
-                startLoading = false;
-                loadedChunks.push_back(loadedBlocks);
-                loadedBlocks.clear();
-            }
-            if(startLoading) {
-                if(data[i] == ' ') {
-                    std::string tempBlock = "";
-                    for(int j = 0; j < 7; j++) {
-                        tempBlock += data[i+j+1];
+                if(data[i] == '~') {
+                    std::string tempPos = "";
+                    for(int f = 0; f < 32; f++) {
+                        if(data[i+f+1] == ' ') {
+                            break;
+                        }
+                        tempPos += data[i+f+1];
                     }
-                    loadedBlocks.push_back(std::stoi(tempBlock));
+                    loadedChunkPos.push_back(std::stoi(tempPos));
+                    // std::cout << GetChunkPosition(std::stoi(tempPos)).x << " " << GetChunkPosition(std::stoi(tempPos)).y << std::endl;
+                }
+                if(data[i] == '%') {
+                    startLoading = false;
+                    loadedChunks.push_back(loadedBlocks);
+                    loadedBlocks.clear();
+                }
+                if(startLoading) {
+                    if(data[i] == ' ') {
+                        std::string tempBlock = "";
+                        for(int j = 0; j < 7; j++) {
+                            tempBlock += data[i+j+1];
+                        }
+                        loadedBlocks.push_back(std::stoi(tempBlock));
+                    }
                 }
             }
         }
     }
+    seed = std::stoi(seedLoading);
 
     for(int i = 0; i < loadedChunks.size(); i++) {
-        int i256 = 0;
+        int i128 = 0;
         int l16 = 0;
         int m16 = 0;
         for(int data : loadedChunks[i]) {
@@ -394,9 +525,9 @@ void Renderer::build_buffers(MTL::Device* device) {
             }
             if(l16 == 16) {
                 l16 = 0;
-                i256++;
+                i128++;
             }
-            chunk[i].blocks[i256][l16][m16] = data;
+            chunk[i].blocks[i128][l16][m16] = data;
             m16++;
         }
     }
@@ -406,7 +537,8 @@ void Renderer::build_buffers(MTL::Device* device) {
     std::vector<Block> blocks;
     bool side1 = false, side2 = false, side3 = false, side4 = false, top = false, bottom = false, checkBlock = false;
     for(int k = 0; k < chunkCount; k++) {
-        for(int i = 0; i < 256; i++) {
+        std::cout << "Deleting invisible blocks: " << k << std::endl;
+        for(int i = 0; i < 128; i++) {
             for(int l = 0; l < 16; l++) {
                 for(int m = 0; m < 16; m++) {
                     if(m != 15 && chunk[k].blocks[i][l][m+1] != 0) {
@@ -421,7 +553,7 @@ void Renderer::build_buffers(MTL::Device* device) {
                     if(l != 0  && chunk[k].blocks[i][l-1][m] != 0) {
                         side4 = true;
                     }
-                    if(i != 255 && chunk[k].blocks[i+1][l][m] != 0) {
+                    if(i != 127 && chunk[k].blocks[i+1][l][m] != 0) {
                         top = true;
                     }
                     if(i != 0 && chunk[k].blocks[i-1][l][m] != 0) {
@@ -434,6 +566,19 @@ void Renderer::build_buffers(MTL::Device* device) {
                     /////////////////////////
                     if(chunk[k].blocks[i][l][m] != 0) {
                         checkBlock = true;
+                    }
+
+                    if(l == 0 && (k % chunkLine) != 0 && chunk[k - 1].blocks[i][l + 15][m] != 0) {
+                        side4 = true;
+                    }
+                    if(l == 15 && (k % chunkLine) != (chunkLine - 1) && chunk[k + 1].blocks[i][l - 15][m] != 0) {
+                        side3 = true;
+                    }
+                    if(m == 0 && (k - chunkLine+1) > 0 && chunk[k - chunkLine].blocks[i][l][m + 15] != 0) {
+                        side2 = true;
+                    }
+                    if(m == 15 && (k + chunkLine) < chunkCount && chunk[k + chunkLine].blocks[i][l][m - 15] != 0) {
+                        side1 = true;
                     }
                     if(!side1 || !side2 || !side3 || !side4 || !top || !bottom) {
                         if(checkBlock) {
@@ -466,7 +611,7 @@ void Renderer::build_buffers(MTL::Device* device) {
     for(int i = 0; i < sizeof(numberOfBlocksInChunk.nuberOfBlocks)/sizeof(numberOfBlocksInChunk.nuberOfBlocks[0]); i++) {
         blockCounter += numberOfBlocksInChunk.nuberOfBlocks[i];
     }
-    std::cout << blockCounter << std::endl;
+    // std::cout << blockCounter << std::endl;
     ////////////////////////////////Number of Blocks to GPU//////////////////////////
     const size_t numberOfBlocksDataSize = sizeof(NuberOfBlocksInChunk);
 
@@ -488,7 +633,8 @@ void Renderer::build_buffers(MTL::Device* device) {
     memcpy(_pArgumentBufferVertex->contents(), chunkToGPU.data(), chunkDataSize);
 
     _pArgumentBufferVertex->didModifyRange(NS::Range::Make(0, _pArgumentBufferVertex->length()));
-
+    /////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////Buffer for textures//////////////////////////////
     pArgumentEncoderFragment = pFragmentFunction->newArgumentEncoder(0);
 
     size_t argumentBufferLengthFragment = pArgumentEncoderFragment->encodedLength();
@@ -497,6 +643,7 @@ void Renderer::build_buffers(MTL::Device* device) {
     pArgumentEncoderFragment->setArgumentBuffer(pArgumentBufferFragment, 0);
     /////////////////////////////////////////////////////////////////////////////////
 
+    std::cout << "Map seed: " << seed << std::endl;
     std::cout << "Buffers built" << std::endl;
 }
 #pragma endregion build_buffers }
@@ -524,6 +671,7 @@ void Renderer::build_spencil(MTL::Device* device) {
     std::cout << "Depth built" << std::endl;
 }
 #pragma endregion build_depth }
+
 #pragma region render {
 void Renderer::run() {
     using simd::float4x4;
@@ -541,9 +689,9 @@ void Renderer::run() {
 
     Renderer::build_shaders(context->device);
     Renderer::build_frame(context->device);
-    Renderer::build_buffers(context->device);
     Renderer::build_spencil(context->device);
     Renderer::build_textures(context->device);
+    Renderer::build_buffers(context->device);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -605,21 +753,6 @@ void Renderer::run() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         /////////////////////////////////////////////////////////////////////////////////
-
-        MTL::RenderCommandEncoder* pCommandEncoder = pCommandBuffer->renderCommandEncoder( pRenderPassDescriptor );
-
-        pCommandEncoder->setRenderPipelineState( pRenderPipelineState );
-        pCommandEncoder->setDepthStencilState( pDepthStencilDescriptor );
-
-        //////////////////////////////////////Set buffers//////////////////////////////////////////
-        pCommandEncoder->setVertexBuffer( _pVertexDataBuffer, 0, 0 );
-        pCommandEncoder->setVertexBuffer( pCameraDataBuffer, 0, 1 );
-        pCommandEncoder->setVertexBuffer( _pArgumentBufferVertex, 0, 2 );
-        pCommandEncoder->setVertexBuffer( _pNumberOfBlocksBufferVertex, 0, 3 );
-
-        pArgumentEncoderFragment->setTextures( pTextureArr, textureRange);
-        pCommandEncoder->setFragmentBuffer(pArgumentBufferFragment, 0, 0);
-        //////////////////////////////////////////////////////////////////////////////////////////
         //////////////Creating FPS counter or menu if active(imGui)////////////////
         if(window->menu) {
             if(window->options) {
@@ -627,9 +760,6 @@ void Renderer::run() {
                 ImGui::SetWindowPos("Options", ImVec2(window->window_size.x*0.5f - menu_size.x * 0.5f, window->window_size.y*0.5f - menu_size.y * 0.5f), 0);
                 ImGui::Begin("Options", p_open , window_flags);
                 ImGui::SetWindowFontScale(2);
-                if(ImGui::Button("Generate terrain", ImVec2(menu_size.x, menu_size.y/3))) {
-                    
-                }
                 if(ImGui::Button("Back", ImVec2(menu_size.x, menu_size.y/3))) {
                     window->options = false;
                 }
@@ -679,6 +809,24 @@ void Renderer::run() {
         /////////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////Set some things and rende to screen////////////////////////////
         ImGui::Render();
+
+        MTL::RenderCommandEncoder* pCommandEncoder = pCommandBuffer->renderCommandEncoder( pRenderPassDescriptor );
+
+        pCommandEncoder->setRenderPipelineState( pRenderPipelineState );
+        pCommandEncoder->setDepthStencilState( pDepthStencilDescriptor );
+        
+        //////////////////////////////////////Set buffers//////////////////////////////////////////
+        pCommandEncoder->setVertexBuffer( _pVertexDataBuffer, 0, 0 );
+        pCommandEncoder->setVertexBuffer( pCameraDataBuffer, 0, 1 );
+        pCommandEncoder->setVertexBuffer( _pArgumentBufferVertex, 0, 2 );
+        pCommandEncoder->setVertexBuffer( _pNumberOfBlocksBufferVertex, 0, 3 );
+        pCommandEncoder->setVertexBuffer( _ptexture_real_indexBufferVertex, 0, 4 );
+        pCommandEncoder->setVertexBuffer( _ptexture_side_amountsBufferVertex, 0, 5 );
+
+        pArgumentEncoderFragment->setTextures( pTextureArr, textureRange);
+        pCommandEncoder->setFragmentBuffer(pArgumentBufferFragment, 0, 0);
+        //////////////////////////////////////////////////////////////////////////////////////////
+
         pCommandEncoder->setCullMode(MTL::CullModeBack);
         pCommandEncoder->setFrontFacingWinding(MTL::Winding::WindingCounterClockwise);
 
