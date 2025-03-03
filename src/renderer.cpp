@@ -2,6 +2,7 @@
 #include "camera.hpp"
 #include "context.hpp"
 #include "window.hpp"
+#include "chunk.hpp"
 #include <chrono>
 
 #include "math.hpp"
@@ -10,6 +11,9 @@
 #include <fstream>
 #include <string>
 #include <FastNoise/FastNoise.h>
+
+#include <print>
+#include <fstream>
 
 //////////////////Move bits in integer to get stored values//////////////////////
 float MoveBits(int bitAmount, int bitsRight, int data) {
@@ -81,6 +85,19 @@ FastNoise::SmartNode<> Generate_Terrain() {
 
 #pragma endregion generate_terrain }
 
+#pragma region generate_grass {
+
+FastNoise::SmartNode<> Generate_Grass() {
+    auto Perlin = FastNoise::New<FastNoise::Perlin>();
+    auto add = FastNoise::New<FastNoise::Add>();
+    add->SetLHS(Perlin);
+    add->SetRHS(-.4);
+
+    return add;
+}
+
+#pragma endregion generate_grass }
+
 #pragma region build_shader {
 void Renderer::build_shaders(MTL::Device* device) {
     using NS::StringEncoding::UTF8StringEncoding;
@@ -89,7 +106,7 @@ void Renderer::build_shaders(MTL::Device* device) {
     std::string shaderStr = "";
 
     std::ifstream shadeingFile;
-    shadeingFile.open("./src/shaders.metal");//"./src/shaders.metal");
+    shadeingFile.open("./src/shaders.metal");
 
     if (!shadeingFile.is_open()) {
         std::cout << "Error: Couldnt be opened" << std::endl;
@@ -215,11 +232,11 @@ void Renderer::build_textures(MTL::Device* device) {
     // for(int i = 0; i < texture_names.size(); i++) {
     //     std::cout << texture_names[i] << " " << texture_side_amounts.texture_side_amounts[i] << " " << texture_real_index.texture_real_index[i] << std::endl;
     // }
-
     for (int i = 0; i < texture_names.size(); i++) {
         int texture_amount = texture_side_amounts.texture_side_amounts[i];
         std::string textureFileType = ".png";
         std::string texturePath = "./src/Textures/";
+        texturesDict.insert({texture_names[i], i});
         for(int j = 0; j < texture_amount;j++) {
             std::string textureName = texture_names[i];
             if(texture_amount == 3) {
@@ -230,6 +247,7 @@ void Renderer::build_textures(MTL::Device* device) {
 
             const char* constTexturePath = textureFullName.c_str();
             stbi_uc* texture = stbi_load(constTexturePath, &size_x, &size_y, &num_channels, 4);
+
 
             size_t spaces = 32 - textureName.length();
             if(texture != nullptr) {
@@ -290,70 +308,12 @@ void Renderer::build_textures(MTL::Device* device) {
 }
 #pragma endregion build_textures }
 /////////////////////////////////////////////////////////////////////////////////
-#include <fstream>
+
 #pragma region build_buffers {
 void Renderer::build_buffers(MTL::Device* device) {
     using simd::float2;
     using simd::float3;
 
-    ////////////////////////Block verts to GPU///////////////////////////////////////
-
-    VertexData verts[] = {
-        //                                                                               Texture
-        //                   Positions                        Normals                   Coordinates
-        { { +0.5, -0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 0.f, 1.f } },
-        { { -0.5, -0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 1.f, 1.f } },
-        { { -0.5, +0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 1.f, 0.f } },
-        { { -0.5, +0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 1.f, 0.f } },
-        { { +0.5, +0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 0.f, 0.f } },
-        { { +0.5, -0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 0.f, 1.f } },
-        
-        { { -0.5, -0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 0.f, 1.f } },
-        { { +0.5, -0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 1.f, 1.f } },
-        { { +0.5, +0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 1.f, 0.f } },
-        { { +0.5, +0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 1.f, 0.f } },
-        { { -0.5, +0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 0.f, 0.f } },
-        { { -0.5, -0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 0.f, 1.f } },
-
-        { { +0.5, -0.5, +0.5 }, {  1.f,  0.f,  0.f }, { 0.f, 1.f } },
-        { { +0.5, -0.5, -0.5 }, {  1.f,  0.f,  0.f }, { 1.f, 1.f } },
-        { { +0.5, +0.5, -0.5 }, {  1.f,  0.f,  0.f }, { 1.f, 0.f } },
-        { { +0.5, +0.5, -0.5 }, {  1.f,  0.f,  0.f }, { 1.f, 0.f } },
-        { { +0.5, +0.5, +0.5 }, {  1.f,  0.f,  0.f }, { 0.f, 0.f } },
-        { { +0.5, -0.5, +0.5 }, {  1.f,  0.f,  0.f }, { 0.f, 1.f } },
-
-        { { -0.5, -0.5, -0.5 }, { -1.f,  0.f,  0.f }, { 0.f, 1.f } },
-        { { -0.5, -0.5, +0.5 }, { -1.f,  0.f,  0.f }, { 1.f, 1.f } },
-        { { -0.5, +0.5, +0.5 }, { -1.f,  0.f,  0.f }, { 1.f, 0.f } },
-        { { -0.5, +0.5, +0.5 }, { -1.f,  0.f,  0.f }, { 1.f, 0.f } },
-        { { -0.5, +0.5, -0.5 }, { -1.f,  0.f,  0.f }, { 0.f, 0.f } },
-        { { -0.5, -0.5, -0.5 }, { -1.f,  0.f,  0.f }, { 0.f, 1.f } },
-
-        { { -0.5, +0.5, +0.5 }, {  0.f,  1.f,  0.f }, { 0.f, 1.f } },
-        { { +0.5, +0.5, +0.5 }, {  0.f,  1.f,  0.f }, { 1.f, 1.f } },
-        { { +0.5, +0.5, -0.5 }, {  0.f,  1.f,  0.f }, { 1.f, 0.f } },
-        { { +0.5, +0.5, -0.5 }, {  0.f,  1.f,  0.f }, { 1.f, 0.f } },
-        { { -0.5, +0.5, -0.5 }, {  0.f,  1.f,  0.f }, { 0.f, 0.f } },
-        { { -0.5, +0.5, +0.5 }, {  0.f,  1.f,  0.f }, { 0.f, 1.f } },
-
-        { { -0.5, -0.5, -0.5 }, {  0.f, -1.f,  0.f }, { 0.f, 1.f } },
-        { { +0.5, -0.5, -0.5 }, {  0.f, -1.f,  0.f }, { 1.f, 1.f } },
-        { { +0.5, -0.5, +0.5 }, {  0.f, -1.f,  0.f }, { 1.f, 0.f } },
-        { { +0.5, -0.5, +0.5 }, {  0.f, -1.f,  0.f }, { 1.f, 0.f } },
-        { { -0.5, -0.5, +0.5 }, {  0.f, -1.f,  0.f }, { 0.f, 0.f } },
-        { { -0.5, -0.5, -0.5 }, {  0.f, -1.f,  0.f }, { 0.f, 1.f } }
-    };
-
-    const size_t vertexDataSize = sizeof( verts );
-
-    MTL::Buffer* pVertexBuffer = device->newBuffer( vertexDataSize, MTL::ResourceStorageModeManaged );
-
-    _pVertexDataBuffer = pVertexBuffer;
-
-    memcpy( _pVertexDataBuffer->contents(), verts, vertexDataSize );
-
-    _pVertexDataBuffer->didModifyRange( NS::Range::Make( 0, _pVertexDataBuffer->length() ) );
-    /////////////////////////////////////////////////////////////////////////////////
     /////////////Creating buffer for camera data and saveing them into it////////////
     const size_t cameraDataSize = kMaxFramesInFlight * sizeof( CameraData );
     for ( size_t i = 0; i < kMaxFramesInFlight; i++ ) {
@@ -404,15 +364,16 @@ void Renderer::build_buffers(MTL::Device* device) {
                         for(int z = 0; z < 16; z++) {
                             if(noiseMap[index] >= 0.0f) {
                                 chunk[count].blocks[y][x][z] = 0;
-                            }else {
+                            }
+                            else {
                                 if(noiseMap[index + 16] >= 0) {
-                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 8);
+                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, texturesDict.at("grass_block"));
                                 } 
                                 else if(noiseMap[index + 80] >= 0) {
-                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 5);
+                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, texturesDict.at("dirt_block"));
                                 } 
                                 else if(noiseMap[index] < 0) {
-                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, 20);
+                                    chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, texturesDict.at("stone_block"));
                                 }
                             }
                             index++;
@@ -425,9 +386,28 @@ void Renderer::build_buffers(MTL::Device* device) {
                 // std::cout << "Setting into chunks time: " << duration1.count() << std::endl;
             }
         }
-
+        int index = 0;
+        std::vector<float> grassNoiseMap(16*16*chunkCount);
+        auto grass_generator = Generate_Grass();
+        grass_generator->GenUniformGrid2D(grassNoiseMap.data(), 0, 0, chunkLine*16,chunkLine*16, 0.5f, seed);
+        for(int i = 0; i < chunkCount;i++) {
+            for(int j = 0; j < 16; j++) {
+                for(int k = 0; k < 16; k++) {
+                    if(grassNoiseMap[index] > 0) {
+                        int counter = 0;
+                        while(true) {
+                            if(chunk[i].blocks[counter][j][k] == 0) {
+                                chunk[i].blocks[counter][j][k] = blockFace(glm::vec3 {j,counter,k}, texturesDict.at("plantGrass_block"));
+                                break;
+                            }
+                            counter++;
+                        }
+                    }
+                    index++;
+                }
+            }
+        }
         // auto generatorStart = std::chrono::high_resolution_clock::now();
-
         std::ofstream chunkFileWrite(mapFileName +".txt");
         chunkFileWrite << seed;
         for(int k = 0; k < chunkCount; k++) {
@@ -541,26 +521,26 @@ void Renderer::build_buffers(MTL::Device* device) {
         for(int i = 0; i < 128; i++) {
             for(int l = 0; l < 16; l++) {
                 for(int m = 0; m < 16; m++) {
-                    if(m != 15 && chunk[k].blocks[i][l][m+1] != 0) {
+                    if(m != 15 && chunk[k].blocks[i][l][m+1] != 0 && GetBlockId(chunk[k].blocks[i][l][m+1]) != texturesDict.at("plantGrass_block")) {
                         side1 = true;
                     }
-                    if(m != 0  && chunk[k].blocks[i][l][m-1] != 0) {
+                    if(m != 0  && chunk[k].blocks[i][l][m-1] != 0 && GetBlockId(chunk[k].blocks[i][l][m-1]) != texturesDict.at("plantGrass_block")){
                         side2 = true;
                     }
-                    if(l != 15 && chunk[k].blocks[i][l+1][m] != 0) {
+                    if(l != 15 && chunk[k].blocks[i][l+1][m] != 0 && GetBlockId(chunk[k].blocks[i][l+1][m]) != texturesDict.at("plantGrass_block")) {
                         side3 = true;
                     }
-                    if(l != 0  && chunk[k].blocks[i][l-1][m] != 0) {
+                    if(l != 0  && chunk[k].blocks[i][l-1][m] != 0 && GetBlockId(chunk[k].blocks[i][l-1][m]) != texturesDict.at("plantGrass_block")) {
                         side4 = true;
                     }
-                    if(i != 127 && chunk[k].blocks[i+1][l][m] != 0) {
+                    if(i != 127 && chunk[k].blocks[i+1][l][m] != 0 && GetBlockId(chunk[k].blocks[i+1][l][m]) != texturesDict.at("plantGrass_block")) {
                         top = true;
                     }
-                    if(i != 0 && chunk[k].blocks[i-1][l][m] != 0) {
+                    if(i != 0 && chunk[k].blocks[i-1][l][m] != 0 && GetBlockId(chunk[k].blocks[i-1][l][m]) != texturesDict.at("plantGrass_block")) {
                         bottom = true;
                     }
                     /////deletes lowest layer
-                    if(i == 0 && chunk[k].blocks[i+1][l][m] != 0) {
+                    if(i == 0 && chunk[k].blocks[i+1][l][m] != 0 && GetBlockId(chunk[k].blocks[i+1][l][m]) != texturesDict.at("plantGrass_block")) {
                         bottom = true;
                     }
                     /////////////////////////
@@ -568,16 +548,16 @@ void Renderer::build_buffers(MTL::Device* device) {
                         checkBlock = true;
                     }
 
-                    if(l == 0 && (k % chunkLine) != 0 && chunk[k - 1].blocks[i][l + 15][m] != 0) {
+                    if(l == 0 && (k % chunkLine) != 0 && chunk[k - 1].blocks[i][l + 15][m] != 0 && GetBlockId(chunk[k - 1].blocks[i][l + 15][m]) != texturesDict.at("plantGrass_block")) {
                         side4 = true;
                     }
-                    if(l == 15 && (k % chunkLine) != (chunkLine - 1) && chunk[k + 1].blocks[i][l - 15][m] != 0) {
+                    if(l == 15 && (k % chunkLine) != (chunkLine - 1) && chunk[k + 1].blocks[i][l - 15][m] != 0 && GetBlockId(chunk[k + 1].blocks[i][l - 15][m]) != texturesDict.at("plantGrass_block")) {
                         side3 = true;
                     }
-                    if(m == 0 && (k - chunkLine+1) > 0 && chunk[k - chunkLine].blocks[i][l][m + 15] != 0) {
+                    if(m == 0 && (k - chunkLine+1) > 0 && chunk[k - chunkLine].blocks[i][l][m + 15] != 0 && GetBlockId(chunk[k - chunkLine].blocks[i][l][m + 15]) != texturesDict.at("plantGrass_block")) {
                         side2 = true;
                     }
-                    if(m == 15 && (k + chunkLine) < chunkCount && chunk[k + chunkLine].blocks[i][l][m - 15] != 0) {
+                    if(m == 15 && (k + chunkLine) < chunkCount && chunk[k + chunkLine].blocks[i][l][m - 15] != 0 && GetBlockId(chunk[k + chunkLine].blocks[i][l][m - 15]) != texturesDict.at("plantGrass_block")) {
                         side1 = true;
                     }
                     if(!side1 || !side2 || !side3 || !side4 || !top || !bottom) {
@@ -816,7 +796,6 @@ void Renderer::run() {
         pCommandEncoder->setDepthStencilState( pDepthStencilDescriptor );
         
         //////////////////////////////////////Set buffers//////////////////////////////////////////
-        pCommandEncoder->setVertexBuffer( _pVertexDataBuffer, 0, 0 );
         pCommandEncoder->setVertexBuffer( pCameraDataBuffer, 0, 1 );
         pCommandEncoder->setVertexBuffer( _pArgumentBufferVertex, 0, 2 );
         pCommandEncoder->setVertexBuffer( _pNumberOfBlocksBufferVertex, 0, 3 );

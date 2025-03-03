@@ -37,7 +37,6 @@ struct Renderer {
     dispatch_semaphore_t _semaphore;
     MTL::DepthStencilState* pDepthStencilDescriptor;
     MTL::Buffer* _pCameraDataBuffer[kMaxFramesInFlight];
-    MTL::Buffer* _pVertexDataBuffer;
     MTL::Buffer* _pnumberOfBlocksInChunkBufferVertex;
     MTL::ArgumentEncoder* pArgumentEncoderFragment;
     MTL::Buffer* pArgumentBufferFragment;
@@ -45,7 +44,7 @@ struct Renderer {
     MTL::Buffer* _pNumberOfBlocksBufferVertex;
     MTL::Buffer* _ptexture_side_amountsBufferVertex;
     MTL::Buffer* _ptexture_real_indexBufferVertex;
-    MTL::Texture* pTextureArr[128];
+    MTL::Texture* pTextureArr[128] = {};
     MTL::Function* pFragmentFunction;
     MTL::Function* pVertexFunction;
     float delta_time = 0.f;
@@ -59,6 +58,7 @@ struct Renderer {
     int chunkCount = chunkLine * chunkLine;
     int instanceCount = 16*16*256;
     int blockCounter = 0;
+    std::unordered_map<std::string, int> texturesDict;
 };
 
 static const std::vector<std::string> texture_end_names = {
