@@ -2,7 +2,6 @@
 #include "camera.hpp"
 #include "context.hpp"
 #include "window.hpp"
-#include "chunk.hpp"
 #include <chrono>
 
 #include "math.hpp"
@@ -304,10 +303,14 @@ void Renderer::build_textures(MTL::Device* device) {
     _ptexture_real_indexBufferVertex->didModifyRange(NS::Range::Make(0, _ptexture_real_indexBufferVertex->length()));
     //////////////////////////////////////////////////////////////////////////////////
 
-    std::cout << "Textures built" << std::endl;
+    std::cout << "Textures built\n" << std::endl;
 }
 #pragma endregion build_textures }
 /////////////////////////////////////////////////////////////////////////////////
+
+// void generate_chunk(int* numberOfBlocks, ) {
+
+// }
 
 #pragma region build_buffers {
 void Renderer::build_buffers(MTL::Device* device) {
@@ -317,7 +320,7 @@ void Renderer::build_buffers(MTL::Device* device) {
     /////////////Creating buffer for camera data and saveing them into it////////////
     const size_t cameraDataSize = kMaxFramesInFlight * sizeof( CameraData );
     for ( size_t i = 0; i < kMaxFramesInFlight; i++ ) {
-        _pCameraDataBuffer[ i ] = device->newBuffer( cameraDataSize, MTL::ResourceStorageModeManaged );
+        _pCameraDataBuffer[i] = device->newBuffer(cameraDataSize, MTL::ResourceStorageModeManaged);
     }
     /////////////////////////////////////////////////////////////////////////////////
     //////////////////////////////Chunk creator//////////////////////////////////////
@@ -338,14 +341,16 @@ void Renderer::build_buffers(MTL::Device* device) {
     }
     mapFileTest.close();
     if(!loadMap || regenerate) {
-        regenerate = false;
         auto generator = Generate_Terrain();
         std::vector<float> noiseMap(128 * 16 * 16);
-        std::vector<glm::vec2> positions;
+        std::vector<glm::vec2> positions = {};
+        positions.resize(chunkCount);
+
+        std::memset(positions.data(), 0, sizeof(int) * positions.size());
         int count = 0;
 
         srand(time(0));
-        seed = rand() % 10000;
+        seed = rand() % 100000;
 
         for(int i = 0; i < chunkLine;i++) {
             for(int j = 0; j < chunkLine; j++) {
@@ -356,7 +361,7 @@ void Renderer::build_buffers(MTL::Device* device) {
                 // auto generateEnd = std::chrono::high_resolution_clock::now();
                 // auto duration = duration_cast<std::chrono::milliseconds>(generateEnd - generateStart);
                 // std::cout << "Generating chunk number: " << count << " " << duration.count() << std::endl;
-                std::cout << "Generating chunk number: " << count << std::endl;
+                std::cout << "Generating chunks: " << round((float)count/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
                 int index = 0;
                 // auto generatorStart = std::chrono::high_resolution_clock::now();
                 for(int x = 0; x < 16; x++) {
@@ -386,6 +391,7 @@ void Renderer::build_buffers(MTL::Device* device) {
                 // std::cout << "Setting into chunks time: " << duration1.count() << std::endl;
             }
         }
+        std::cout << std::endl;
         int index = 0;
         std::vector<float> grassNoiseMap(16*16*chunkCount);
         auto grass_generator = Generate_Grass();
@@ -407,10 +413,31 @@ void Renderer::build_buffers(MTL::Device* device) {
                 }
             }
         }
+
+        for(int i = 0; i < chunkCount;i++) {
+            for(int j = 0; j < 16; j++) {
+                for(int k = 0; k < 16; k++) {
+                    if(grassNoiseMap[index] > 0) {
+                        int counter = 0;
+                        while(true) {
+                            if(chunk[i].blocks[counter][j][k] == 0) {
+                                chunk[i].blocks[counter][j][k] = blockFace(glm::vec3 {j,counter,k}, texturesDict.at("plantGrass_block"));
+                                break;
+                            }
+                            counter++;
+                        }
+                    }
+                    index++;
+                }
+            }
+        }
+
         // auto generatorStart = std::chrono::high_resolution_clock::now();
         std::ofstream chunkFileWrite(mapFileName +".txt");
         chunkFileWrite << seed;
+        int counter = 0;
         for(int k = 0; k < chunkCount; k++) {
+            std::cout << "Saving chunks: " << round((float)k/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
             chunkFileWrite << "-" << k << "~";
             chunkFileWrite << ChunkPosition(positions[k].x, positions[k].y) << " ";
             for(int i = 0; i < 128; i++) {
@@ -427,12 +454,13 @@ void Renderer::build_buffers(MTL::Device* device) {
                 }
             }
             chunkFileWrite << "%\n";
+            counter++;
         }
         chunkFileWrite.close();
         // auto generatorEnd = std::chrono::high_resolution_clock::now();
         // auto duration = duration_cast<std::chrono::milliseconds>(generatorEnd - generatorStart);
         // std::cout << "Saving time: " << duration.count() << std::endl;
-
+        std::cout << std::endl;
     }
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -456,13 +484,13 @@ void Renderer::build_buffers(MTL::Device* device) {
             if(start) {
                 if(data[i] == '-') {
                     int counter = 1;
-                    std::cout << "Loading chunk: ";
+                    std::string tempS = "";
                     while(data[i + counter] != '~') {
-                        std::cout << data[i+counter];
+                        tempS += data[i + counter];
                         counter++;
                     }
-                    std::cout << std::endl;
-                    startLoading = true;
+                        std::cout << "Loading chunks: " << round((float)std::stoi(tempS)/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
+                        startLoading = true;
                 }
                 if(data[i] == '~') {
                     std::string tempPos = "";
@@ -492,6 +520,7 @@ void Renderer::build_buffers(MTL::Device* device) {
             }
         }
     }
+    std::cout << std::endl;
     seed = std::stoi(seedLoading);
 
     for(int i = 0; i < loadedChunks.size(); i++) {
@@ -517,7 +546,7 @@ void Renderer::build_buffers(MTL::Device* device) {
     std::vector<Block> blocks;
     bool side1 = false, side2 = false, side3 = false, side4 = false, top = false, bottom = false, checkBlock = false;
     for(int k = 0; k < chunkCount; k++) {
-        std::cout << "Deleting invisible blocks: " << k << std::endl;
+        std::cout << "Deleting invisible blocks: " << round((float)k/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
         for(int i = 0; i < 128; i++) {
             for(int l = 0; l < 16; l++) {
                 for(int m = 0; m < 16; m++) {
@@ -575,6 +604,7 @@ void Renderer::build_buffers(MTL::Device* device) {
         numberOfBlocksInChunk.nuberOfBlocks[k] = blockCounter;
         blockCounter = 0;
     }
+    std::cout << std::endl;
     std::vector<ChunkToGPU> chunkToGPU = {};
     chunkToGPU.resize(chunkCount);
     std::memset(chunkToGPU.data(), 0, sizeof(ChunkToGPU) * chunkToGPU.size());
@@ -624,7 +654,7 @@ void Renderer::build_buffers(MTL::Device* device) {
     /////////////////////////////////////////////////////////////////////////////////
 
     std::cout << "Map seed: " << seed << std::endl;
-    std::cout << "Buffers built" << std::endl;
+    std::cout << "Buffers built\n" << std::endl;
 }
 #pragma endregion build_buffers }
 

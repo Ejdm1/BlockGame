@@ -23,23 +23,11 @@ struct CameraData {
 
 struct Chunk {
     int chunkPos;
-    int blocks[256*16*16];
+    int blocks[128*16*16];
 };
 
 struct Textures {
     texture2d<half> pTextureArr[128];
-};
-
-struct NuberOfBlocksInChunk {
-    int nuberOfBlocks[1024];
-};
-
-struct Texture_real_index {
-    int texture_real_index[128];
-};
-
-struct Texture_side_amounts {
-    int texture_side_amounts[128];
 };
 
 float MoveBits(int bitAmount, int bitsRight, int data) {
@@ -164,9 +152,9 @@ constant VertexData cross_verts[36] = {
 
 v2f vertex vertexMain(  device const CameraData& cameraData [[buffer(1)]],
                         device const  Chunk* chunkIn [[buffer(2)]],
-                        device const NuberOfBlocksInChunk* nuberOfBlocksInChunk [[buffer(3)]],
-                        device const Texture_real_index* texture_real_index [[buffer(4)]],
-                        device const Texture_side_amounts* texture_side_amounts [[buffer(5)]],
+                        device const int* nuberOfBlocksInChunk [[buffer(3)]],
+                        device const int* texture_real_index [[buffer(4)]],
+                        device const int* texture_side_amounts [[buffer(5)]],
                         uint counter [[vertex_id]],
                         uint instance [[instance_id]]) {
     v2f o;
@@ -174,11 +162,11 @@ v2f vertex vertexMain(  device const CameraData& cameraData [[buffer(1)]],
     int chunkIndex = 0;
     int blockIndex = 0;
     while(instance > blockNumber) {
-        if(blockNumber + nuberOfBlocksInChunk->nuberOfBlocks[chunkIndex] > instance) {
+        if(blockNumber + nuberOfBlocksInChunk[chunkIndex] > instance) {
             break;
         }
         else {
-            blockNumber = blockNumber + nuberOfBlocksInChunk->nuberOfBlocks[chunkIndex];
+            blockNumber = blockNumber + nuberOfBlocksInChunk[chunkIndex];
             chunkIndex++;
         }
     }
@@ -206,31 +194,31 @@ v2f vertex vertexMain(  device const CameraData& cameraData [[buffer(1)]],
     o.position = cameraData.perspectiveTransform * cameraData.worldTransform * pos;
     o.texcoord = vd.texcoord.xy;
 
-    switch (texture_side_amounts->texture_side_amounts[block_ID]) {
+    switch (texture_side_amounts[block_ID]) {
         case 3:
             switch (block_sideID) {
                 case 0:
-                    o.side = texture_real_index->texture_real_index[block_ID]+1;
+                    o.side = texture_real_index[block_ID]+1;
                     break;
                 case 1:
-                    o.side = texture_real_index->texture_real_index[block_ID]+1;
+                    o.side = texture_real_index[block_ID]+1;
                     break;
                 case 2:
-                    o.side = texture_real_index->texture_real_index[block_ID]+1;
+                    o.side = texture_real_index[block_ID]+1;
                     break;
                 case 3:
-                    o.side = texture_real_index->texture_real_index[block_ID]+1;
+                    o.side = texture_real_index[block_ID]+1;
                     break;
                 case 4:
-                    o.side = texture_real_index->texture_real_index[block_ID]+2;
+                    o.side = texture_real_index[block_ID]+2;
                     break;
                 case 5:
-                    o.side = texture_real_index->texture_real_index[block_ID];
+                    o.side = texture_real_index[block_ID];
                     break;
             }
             break;
         case 1:
-            o.side = texture_real_index->texture_real_index[block_ID];
+            o.side = texture_real_index[block_ID];
             break;
     }
 

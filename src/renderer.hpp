@@ -20,6 +20,9 @@
 
 #include "../dependencies/imgui/backends/imgui_impl_metal.h"
 
+const int chunkLine = 8;
+const bool regenerate = false;
+
 struct Renderer {
     void build_shaders(MTL::Device* device);
     void build_buffers(MTL::Device* device);
@@ -27,7 +30,6 @@ struct Renderer {
     void build_spencil(MTL::Device* device);
     void build_textures(MTL::Device* device);
     void run();
-    void Regenerate();
     static constexpr size_t kMaxFramesInFlight = 3;
     MTL::RenderPipelineState* pRenderPipelineState;
     MTL::Buffer* _pVertexColorsBuffer;
@@ -52,11 +54,9 @@ struct Renderer {
     bool* p_open;
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration;
 
-    bool regenerate = false;
-    int chunkLine = 16;
     std::string mapFileName = "map" + std::to_string(chunkLine) + "x" + std::to_string(chunkLine);
     int chunkCount = chunkLine * chunkLine;
-    int instanceCount = 16*16*256;
+    int instanceCount = 16*16*128;
     int blockCounter = 0;
     std::unordered_map<std::string, int> texturesDict;
 };
@@ -66,6 +66,7 @@ static const std::vector<std::string> texture_end_names = {
     "_side",
     "_top"
 };
+
 struct Texture_side_amounts {
     int texture_side_amounts[128] = {};
 };
@@ -90,16 +91,16 @@ struct Block {
 
 struct Chunk {
     int chunkPos;
-    int blocks[256][16][16];
+    int blocks[128][16][16];
 };
 
 struct ChunkToGPU {
     int chunkPos;
-    int blocks [16*16*256];
+    int blocks [16*16*128];
 };
 
 struct NuberOfBlocksInChunk {
-    int nuberOfBlocks[1024] = {};
+    int nuberOfBlocks[chunkLine*chunkLine] = {};
 };
 
 //Saveing block data into single int x,y,z,blockID(4bits x, 8bits y, 4bits z, 14bits blockID)//

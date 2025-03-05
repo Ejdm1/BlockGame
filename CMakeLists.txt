@@ -14,7 +14,6 @@ add_executable(test src/backend/glfw_adapter.mm
                     src/metal_bullshit.cpp src/renderer.cpp
                     src/window.cpp 
                     src/main.cpp
-                    src/chunk.cpp
                     dependencies/imgui/imgui_draw.cpp
                     dependencies/imgui/imgui_internal.h
                     dependencies/imgui/imgui_tables.cpp
