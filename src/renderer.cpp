@@ -13,6 +13,7 @@
 
 #include <print>
 #include <fstream>
+#include <thread>
 
 //////////////////Move bits in integer to get stored values//////////////////////
 float MoveBits(int bitAmount, int bitsRight, int data) {
@@ -103,7 +104,7 @@ void Renderer::build_shaders(MTL::Device* device) {
 
     std::string tempShaderStr;
     std::string shaderStr = "";
-
+  
     std::ifstream shadeingFile;
     shadeingFile.open("./src/shaders.metal");
 
@@ -308,9 +309,9 @@ void Renderer::build_textures(MTL::Device* device) {
 #pragma endregion build_textures }
 /////////////////////////////////////////////////////////////////////////////////
 
-// void generate_chunk(int* numberOfBlocks, ) {
-
-// }
+void generateNoise(FastNoise::SmartNode<> generator, std::vector<float>& noiseMap, int x, int y, int seed)  {
+    generator->GenUniformGrid3D(noiseMap.data(), 16 * x, -20,16 * y, 16, 128, 16, 0.01f, seed);
+}
 
 #pragma region build_buffers {
 void Renderer::build_buffers(MTL::Device* device) {
@@ -341,43 +342,60 @@ void Renderer::build_buffers(MTL::Device* device) {
     }
     mapFileTest.close();
     if(!loadMap || regenerate) {
+        NoiseMaps noiseMaps[chunkCount];
         auto generator = Generate_Terrain();
-        std::vector<float> noiseMap(128 * 16 * 16);
-        std::vector<glm::vec2> positions = {};
-        positions.resize(chunkCount);
+        // std::vector<float> noiseMap(128 * 16 * 16);
+        std::vector<glm::vec2> positions;
+        
 
-        std::memset(positions.data(), 0, sizeof(int) * positions.size());
+        for(int i = 0; i < chunkCount; i++) {
+            noiseMaps[i].noiseMap = std::vector<float>(128*16*16);
+        }
+
+        std::vector<std::thread> threads;
+        int counter = 0;
+        for(int i = 0; i < chunkLine; i++) {
+            for(int j = 0; j < chunkLine; j++) {
+                threads.emplace_back(std::thread(generateNoise, generator, std::ref(noiseMaps[counter].noiseMap), i - chunkLine/2, j - chunkLine/2, seed));
+                counter++;
+            } 
+        }
+
         int count = 0;
+        for (auto& t : threads) {
+            t.join();
+            std::cout << "Generating chunks: " << round((float)count/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
+            count++;
+        }
 
         srand(time(0));
         seed = rand() % 100000;
 
+        count = 0;
         for(int i = 0; i < chunkLine;i++) {
             for(int j = 0; j < chunkLine; j++) {
                 glm::vec2 position = glm::vec2{i - chunkLine/2, j - chunkLine/2};
                 positions.push_back(position);
                 // auto generateStart = std::chrono::high_resolution_clock::now();
-                generator->GenUniformGrid3D(noiseMap.data(), 16 * position.x, -20,16 * position.y, 16, 128, 16, 0.01f, seed);
                 // auto generateEnd = std::chrono::high_resolution_clock::now();
                 // auto duration = duration_cast<std::chrono::milliseconds>(generateEnd - generateStart);
                 // std::cout << "Generating chunk number: " << count << " " << duration.count() << std::endl;
-                std::cout << "Generating chunks: " << round((float)count/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
                 int index = 0;
                 // auto generatorStart = std::chrono::high_resolution_clock::now();
                 for(int x = 0; x < 16; x++) {
                     for(int y = 0; y < 128; y++) {
                         for(int z = 0; z < 16; z++) {
-                            if(noiseMap[index] >= 0.0f) {
+                            if(noiseMaps[count].noiseMap[index] >= 0.0f) {
                                 chunk[count].blocks[y][x][z] = 0;
                             }
                             else {
-                                if(noiseMap[index + 16] >= 0) {
+                                if(noiseMaps[count].noiseMap[index + 16] >= 0) {
                                     chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, texturesDict.at("grass_block"));
                                 } 
-                                else if(noiseMap[index + 80] >= 0) {
+                                else if(noiseMaps[count].noiseMap[index + 80] >= 0) {
                                     chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, texturesDict.at("dirt_block"));
                                 } 
-                                else if(noiseMap[index] < 0) {
+                                else if(noiseMaps[count].noiseMap[index] < 0) {
                                     chunk[count].blocks[y][x][z] = blockFace(glm::vec3 {x,y,z}, texturesDict.at("stone_block"));
                                 }
                             }
@@ -413,29 +431,10 @@ void Renderer::build_buffers(MTL::Device* device) {
                 }
             }
         }
-
-        for(int i = 0; i < chunkCount;i++) {
-            for(int j = 0; j < 16; j++) {
-                for(int k = 0; k < 16; k++) {
-                    if(grassNoiseMap[index] > 0) {
-                        int counter = 0;
-                        while(true) {
-                            if(chunk[i].blocks[counter][j][k] == 0) {
-                                chunk[i].blocks[counter][j][k] = blockFace(glm::vec3 {j,counter,k}, texturesDict.at("plantGrass_block"));
-                                break;
-                            }
-                            counter++;
-                        }
-                    }
-                    index++;
-                }
-            }
-        }
-
         // auto generatorStart = std::chrono::high_resolution_clock::now();
         std::ofstream chunkFileWrite(mapFileName +".txt");
         chunkFileWrite << seed;
-        int counter = 0;
+        counter = 0;
         for(int k = 0; k < chunkCount; k++) {
             std::cout << "Saving chunks: " << round((float)k/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
             chunkFileWrite << "-" << k << "~";
@@ -501,7 +500,6 @@ void Renderer::build_buffers(MTL::Device* device) {
                         tempPos += data[i+f+1];
                     }
                     loadedChunkPos.push_back(std::stoi(tempPos));
-                    // std::cout << GetChunkPosition(std::stoi(tempPos)).x << " " << GetChunkPosition(std::stoi(tempPos)).y << std::endl;
                 }
                 if(data[i] == '%') {
                     startLoading = false;

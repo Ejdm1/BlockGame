@@ -79,6 +79,10 @@ struct FrameData {
     float angle;
 };
 
+struct NoiseMaps {
+    std::vector<float> noiseMap = {};
+};
+
 struct VertexData {
     simd::float3 position;
     simd::float3 normal;
