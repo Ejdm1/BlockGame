@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 
 #include "backend/glfw_adapter.h"
+#include <iostream>
 
 struct Window {
     void create_window();

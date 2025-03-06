@@ -2,26 +2,24 @@
 
 #include <cstdio>
 
-#include <Metal/Metal.hpp>
-#include <MetalKit/MetalKit.hpp>
-
 #include "stb_image.h"
 
-#include "backend/glfw_adapter.h"
-
-#include <simd/simd.h>
-#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "../dependencies/imgui/imgui.h"
 #include "../dependencies/imgui/backends/imgui_impl_glfw.h"
-
 #define IMGUI_IMPL_METAL_CPP
-
 #include "../dependencies/imgui/backends/imgui_impl_metal.h"
 
-const int chunkLine = 8;
-const bool regenerate = false;
+#include "camera.hpp"
+#include "context.hpp"
+#include "window.hpp"
+#include "chunk.hpp"
+#include "math.hpp"
+
+
+#include <chrono>
+#include <string>
 
 struct Renderer {
     void build_shaders(MTL::Device* device);
@@ -54,11 +52,9 @@ struct Renderer {
     bool* p_open;
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration;
 
-    std::string mapFileName = "map" + std::to_string(chunkLine) + "x" + std::to_string(chunkLine);
-    int chunkCount = chunkLine * chunkLine;
     int instanceCount = 16*16*128;
-    int blockCounter = 0;
     std::unordered_map<std::string, int> texturesDict;
+    ChunkClass chunkClass;
 };
 
 static const std::vector<std::string> texture_end_names = {
@@ -79,46 +75,8 @@ struct FrameData {
     float angle;
 };
 
-struct NoiseMaps {
-    std::vector<float> noiseMap = {};
-};
-
 struct VertexData {
     simd::float3 position;
     simd::float3 normal;
     simd::float2 texcoord;
 };
-
-struct Block {
-    int block;
-};
-
-struct Chunk {
-    int chunkPos;
-    int blocks[128][16][16];
-};
-
-struct ChunkToGPU {
-    int chunkPos;
-    int blocks [16*16*128];
-};
-
-struct NuberOfBlocksInChunk {
-    int nuberOfBlocks[chunkLine*chunkLine] = {};
-};
-
-//Saveing block data into single int x,y,z,blockID(4bits x, 8bits y, 4bits z, 14bits blockID)//
-inline int blockFace(glm::vec3 pos, int block_id) {
-    int data = 0;
-    if (pos.x > 15) {pos.x = 0;}
-    if (pos.y > 255) {pos.y = 0;}
-    if (pos.z > 15) {pos.z = 0;}
-
-    data |= ((int)pos.x & 0xf) << 0;
-    data |= ((int)pos.y & 0xff) << 4;
-    data |= ((int)pos.z & 0xf) << 12;
-    data |= (block_id & 0x3fff) << 18;
-
-    return data;
-}
-///////////////////////////////////////////////////////////////////////////////////////////////

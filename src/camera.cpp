@@ -1,7 +1,4 @@
-#include "math.hpp"
-
 #include "camera.hpp"
-#include <iostream>
 
 void Camera::on_mouse_move(GLFWwindow* glfwWindow, glm::vec2 cursor_pos, glm::vec2 window_size) {
     if(glfwGetWindowAttrib(glfwWindow, GLFW_FOCUSED)) {

@@ -4,12 +4,12 @@
 #include <MetalKit/MetalKit.hpp>
 
 #include <simd/simd.h>
-#include <glm/glm.hpp>
 
 #include "window.hpp"
 
-#include "backend/glfw_adapter.h"
-
+#include "math.hpp"
+#include <iostream>
+ 
 struct CameraData {
     simd::float4x4 perspectiveTransform;
     glm::mat4 worldTransform;

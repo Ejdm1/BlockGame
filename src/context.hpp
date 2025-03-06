@@ -12,4 +12,4 @@ struct Context {
     NS::Window* ns_window;
     CA::MetalDrawable* pMetalDrawable;
     MTL::CommandQueue* commandQueue;
-};
+}; 

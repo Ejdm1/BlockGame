@@ -8,7 +8,7 @@ namespace math {
     constexpr inline glm::vec3 add( const glm::vec3& a, const glm::vec3& b ) {
         return a + b;
     }
-
+ 
     constexpr inline glm::mat4 makeIdentity() {
         return glm::mat4(1.0f);
     }
