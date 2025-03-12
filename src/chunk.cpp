@@ -1,5 +1,6 @@
 #include "chunk.hpp"
 
+//////////////////////////Create chunk noise map generator function using FastNoise/////////////
 #pragma region generate_terrain {
 
 FastNoise::SmartNode<> Generate_Terrain() {
@@ -22,7 +23,9 @@ FastNoise::SmartNode<> Generate_Terrain() {
 }
 
 #pragma endregion generate_terrain }
+////////////////////////////////////////////////////////////////////////////////////////////////
 
+///////////////////////////Create grass noise map generator function using FastNoise////////////
 #pragma region generate_grass {
 
 FastNoise::SmartNode<> Generate_Grass() {
@@ -35,21 +38,23 @@ FastNoise::SmartNode<> Generate_Grass() {
 }
 
 #pragma endregion generate_grass }
+////////////////////////////////////////////////////////////////////////////////////////////////
 
+///////////////////////////Generate noise map for single chunk///////////////////////////////////
 void generateNoise(FastNoise::SmartNode<> generator, std::vector<float>& noiseMap, int x, int y, int seed)  {
     generator->GenUniformGrid3D(noiseMap.data(), 16 * x, -20,16 * y, 16, 128, 16, 0.01f, seed);
 }
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict) {
     //////////////////////////////Chunk creator//////////////////////////////////////
     std::vector<Chunk> chunk = {};
     chunk.resize(chunkCount);
 
-    std::memset(chunk.data(), 0, sizeof( Chunk )* chunk.size());
+    std::memset(chunk.data(), 0, sizeof(Chunk)* chunk.size());
 
     ////////////////////////////////////////Generate new map/////////////////////////////////////////
     bool loadMap;
-    int seed;
     std::ifstream mapFileTest(mapFileName + ".txt");
     if(mapFileTest.good()) {
         loadMap = true;
@@ -61,7 +66,6 @@ void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict
     if(!loadMap || regenerate) {
         NoiseMaps noiseMaps[chunkCount];
         auto generator = Generate_Terrain();
-        // std::vector<float> noiseMap(128 * 16 * 16);
         std::vector<glm::vec2> positions;
         
 
@@ -69,26 +73,53 @@ void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict
             noiseMaps[i].noiseMap = std::vector<float>(128*16*16);
         }
 
-        std::vector<std::thread> threads;
-        int counter = 0;
-        for(int i = 0; i < chunkLine; i++) {
-            for(int j = 0; j < chunkLine; j++) {
-                threads.emplace_back(std::thread(generateNoise, generator, std::ref(noiseMaps[counter].noiseMap), i - chunkLine/2, j - chunkLine/2, seed));
-                counter++;
-            } 
-        }
-
-        int count = 0;
-        for (auto& t : threads) {
-            t.join();
-            std::cout << "Generating chunks: " << round((float)count/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
-            count++;
-        }
-
         srand(time(0));
         seed = rand() % 100000;
 
-        count = 0;
+        if(chunkLine < 32) {
+            std::vector<std::thread> threads;
+            int counter = 0;
+            for(int i = 0; i < chunkLine; i++) {
+                for(int j = 0; j < chunkLine; j++) {
+                    threads.emplace_back(std::thread(generateNoise, generator, std::ref(noiseMaps[counter].noiseMap), i - chunkLine/2, j - chunkLine/2, seed));
+                    counter++;
+                } 
+            }
+
+            int count = 0;
+            for (auto& t : threads) {
+                t.join();
+                std::cout << "Generating chunks: " << round((float)count/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
+                count++;
+            }
+        }
+        else {
+            std::vector<std::thread> threads;
+            int counter = 0;
+            int count = 0;
+            int posX = 0;
+            int posY = 0;
+            for(int k = 0; k < chunkLine/32*chunkLine/32; k++) {
+                threads.clear();
+                for(int i = 0; i < 32 * 32; i++) {
+                    threads.emplace_back(std::thread(generateNoise, generator, std::ref(noiseMaps[counter].noiseMap), posX - chunkLine/2, posY - chunkLine/2, seed));
+                    posY++;
+                    counter++;
+                    if(counter % chunkLine == 0) {
+                        posY = 0;
+                        posX++;
+                    }
+                }
+
+                for (auto& t : threads) {
+                    t.join();
+                    std::cout << "Generating chunks: " << round((float)count/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
+                    count++;
+                }
+            }
+        }
+
+        int count = 0;
         for(int i = 0; i < chunkLine;i++) {
             for(int j = 0; j < chunkLine; j++) {
                 glm::vec2 position = glm::vec2{i - chunkLine/2, j - chunkLine/2};
@@ -151,7 +182,7 @@ void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict
         // auto generatorStart = std::chrono::high_resolution_clock::now();
         std::ofstream chunkFileWrite(mapFileName +".txt");
         chunkFileWrite << seed;
-        counter = 0;
+        int counter = 0;
         for(int k = 0; k < chunkCount; k++) {
             std::cout << "Saving chunks: " << round((float)k/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
             chunkFileWrite << "-" << k << "~";
@@ -180,7 +211,6 @@ void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict
     }
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
-    std::ifstream chunkFileRead(mapFileName + ".txt");
 
     std::string data;
     bool startLoading = false;
@@ -189,6 +219,9 @@ void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict
     std::vector<int> loadedChunkPos;
     bool start = false;
     std::string seedLoading = "";
+    
+    std::ifstream chunkFileRead(mapFileName + ".txt");
+
     while(std::getline(chunkFileRead, data)) {
         for(int i = 0; i < data.size(); i++) {
             if(data[i] == '-') {
@@ -308,7 +341,7 @@ void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict
                             blocks.push_back(chunk[k].blocks[i][l][m]);
                             blockCounter++;
                         }
-                    }//std::unordered_map<class Key, class Tp>
+                    }
                     side1 = false, side2 = false, side3 = false, side4 = false, top = false, bottom = false, checkBlock = false;
                 }
             }
@@ -332,5 +365,4 @@ void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict
     for(int i = 0; i < sizeof(numberOfBlocksInChunk.nuberOfBlocks)/sizeof(numberOfBlocksInChunk.nuberOfBlocks[0]); i++) {
         blockCounter += numberOfBlocksInChunk.nuberOfBlocks[i];
     }
-    // std::cout << blockCounter << std::endl;
 }

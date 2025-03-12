@@ -40,8 +40,9 @@ struct Renderer {
     MTL::Buffer* _pnumberOfBlocksInChunkBufferVertex;
     MTL::ArgumentEncoder* pArgumentEncoderFragment;
     MTL::Buffer* pArgumentBufferFragment;
-    MTL::Buffer* _pArgumentBufferVertex;
-    MTL::Buffer* _pNumberOfBlocksBufferVertex;
+    MTL::Buffer* chunkVertexBuffer;
+    MTL::Buffer* _pNumberOfBlocksBufferVertex[kMaxFramesInFlight];
+    MTL::Buffer* _pChunkIndexesToBeRenderd[kMaxFramesInFlight];
     MTL::Buffer* _ptexture_side_amountsBufferVertex;
     MTL::Buffer* _ptexture_real_indexBufferVertex;
     MTL::Texture* pTextureArr[128] = {};

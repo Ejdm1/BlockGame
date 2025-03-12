@@ -7,6 +7,7 @@ struct v2f {
     float2 texcoord;
     int side;
     bool del = false;
+    float tooFar;
 };
 
 struct VertexData {
@@ -19,6 +20,7 @@ struct CameraData {
     float4x4 perspectiveTransform;
     float4x4 worldTransform;
     float3x3 worldNormalTransform;
+    float3 cameraPosition;
 };
 
 struct Chunk {
@@ -58,105 +60,94 @@ int GetBlockId(int data) {
     return MoveBits(14, 18, data);
 }
 
+///////////////////////////////block////////////////////////////////
 constant VertexData verts[36] = {
     //                                               Texture
     //      Positions            Normals           Coordinates
-    { { +0.5, -0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 0.f, 1.f } },
-    { { -0.5, -0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 1.f, 1.f } },
-    { { -0.5, +0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 1.f, 0.f } },
-    { { -0.5, +0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 1.f, 0.f } },//back
-    { { +0.5, +0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 0.f, 0.f } },
-    { { +0.5, -0.5, -0.5 }, {  0.f,  0.f, -1.f }, { 0.f, 1.f } },
+    {{+0.5, -0.5, -0.5}, {0.f, 0.f, -1.f}, {0.f, 1.f}},
+    {{-0.5, -0.5, -0.5}, {0.f, 0.f, -1.f}, {1.f, 1.f}},
+    {{-0.5, +0.5, -0.5}, {0.f, 0.f, -1.f}, {1.f, 0.f}},
+    {{-0.5, +0.5, -0.5}, {0.f, 0.f, -1.f}, {1.f, 0.f}},//back
+    {{+0.5, +0.5, -0.5}, {0.f, 0.f, -1.f}, {0.f, 0.f}},
+    {{+0.5, -0.5, -0.5}, {0.f, 0.f, -1.f}, {0.f, 1.f}},
     
-    { { -0.5, -0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 0.f, 1.f } },
-    { { +0.5, -0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 1.f, 1.f } },
-    { { +0.5, +0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 1.f, 0.f } },
-    { { +0.5, +0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 1.f, 0.f } },//front
-    { { -0.5, +0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 0.f, 0.f } },
-    { { -0.5, -0.5, +0.5 }, {  0.f,  0.f,  1.f }, { 0.f, 1.f } },
+    {{-0.5, -0.5, +0.5}, {0.f, 0.f, +1.f}, {0.f, 1.f}},
+    {{+0.5, -0.5, +0.5}, {0.f, 0.f, +1.f}, {1.f, 1.f}},
+    {{+0.5, +0.5, +0.5}, {0.f, 0.f, +1.f}, {1.f, 0.f}},
+    {{+0.5, +0.5, +0.5}, {0.f, 0.f, +1.f}, {1.f, 0.f}},//front
+    {{-0.5, +0.5, +0.5}, {0.f, 0.f, +1.f}, {0.f, 0.f}},
+    {{-0.5, -0.5, +0.5}, {0.f, 0.f, +1.f}, {0.f, 1.f}},
 
-    { { +0.5, -0.5, +0.5 }, {  1.f,  0.f,  0.f }, { 0.f, 1.f } },
-    { { +0.5, -0.5, -0.5 }, {  1.f,  0.f,  0.f }, { 1.f, 1.f } },
-    { { +0.5, +0.5, -0.5 }, {  1.f,  0.f,  0.f }, { 1.f, 0.f } },
-    { { +0.5, +0.5, -0.5 }, {  1.f,  0.f,  0.f }, { 1.f, 0.f } },//right
-    { { +0.5, +0.5, +0.5 }, {  1.f,  0.f,  0.f }, { 0.f, 0.f } },
-    { { +0.5, -0.5, +0.5 }, {  1.f,  0.f,  0.f }, { 0.f, 1.f } },
+    {{+0.5, -0.5, +0.5}, {+1.f, 0.f, 0.f}, {0.f, 1.f}},
+    {{+0.5, -0.5, -0.5}, {+1.f, 0.f, 0.f}, {1.f, 1.f}},
+    {{+0.5, +0.5, -0.5}, {+1.f, 0.f, 0.f}, {1.f, 0.f}},
+    {{+0.5, +0.5, -0.5}, {+1.f, 0.f, 0.f}, {1.f, 0.f}},//right
+    {{+0.5, +0.5, +0.5}, {+1.f, 0.f, 0.f}, {0.f, 0.f}},
+    {{+0.5, -0.5, +0.5}, {+1.f, 0.f, 0.f}, {0.f, 1.f}},
 
-    { { -0.5, -0.5, -0.5 }, { -1.f,  0.f,  0.f }, { 0.f, 1.f } },
-    { { -0.5, -0.5, +0.5 }, { -1.f,  0.f,  0.f }, { 1.f, 1.f } },
-    { { -0.5, +0.5, +0.5 }, { -1.f,  0.f,  0.f }, { 1.f, 0.f } },
-    { { -0.5, +0.5, +0.5 }, { -1.f,  0.f,  0.f }, { 1.f, 0.f } },//left
-    { { -0.5, +0.5, -0.5 }, { -1.f,  0.f,  0.f }, { 0.f, 0.f } },
-    { { -0.5, -0.5, -0.5 }, { -1.f,  0.f,  0.f }, { 0.f, 1.f } },
+    {{-0.5, -0.5, -0.5}, {-1.f, 0.f, 0.f}, {0.f, 1.f}},
+    {{-0.5, -0.5, +0.5}, {-1.f, 0.f, 0.f}, {1.f, 1.f}},
+    {{-0.5, +0.5, +0.5}, {-1.f, 0.f, 0.f}, {1.f, 0.f}},
+    {{-0.5, +0.5, +0.5}, {-1.f, 0.f, 0.f}, {1.f, 0.f}},//left
+    {{-0.5, +0.5, -0.5}, {-1.f, 0.f, 0.f}, {0.f, 0.f}},
+    {{-0.5, -0.5, -0.5}, {-1.f, 0.f, 0.f}, {0.f, 1.f}},
 
-    { { -0.5, +0.5, +0.5 }, {  0.f,  1.f,  0.f }, { 0.f, 1.f } },
-    { { +0.5, +0.5, +0.5 }, {  0.f,  1.f,  0.f }, { 1.f, 1.f } },
-    { { +0.5, +0.5, -0.5 }, {  0.f,  1.f,  0.f }, { 1.f, 0.f } },
-    { { +0.5, +0.5, -0.5 }, {  0.f,  1.f,  0.f }, { 1.f, 0.f } },//top
-    { { -0.5, +0.5, -0.5 }, {  0.f,  1.f,  0.f }, { 0.f, 0.f } },
-    { { -0.5, +0.5, +0.5 }, {  0.f,  1.f,  0.f }, { 0.f, 1.f } },
+    {{-0.5, +0.5, +0.5}, {0.f, +1.f, 0.f}, {0.f, 1.f}},
+    {{+0.5, +0.5, +0.5}, {0.f, +1.f, 0.f}, {1.f, 1.f}},
+    {{+0.5, +0.5, -0.5}, {0.f, +1.f, 0.f}, {1.f, 0.f}},
+    {{+0.5, +0.5, -0.5}, {0.f, +1.f, 0.f}, {1.f, 0.f}},//top
+    {{-0.5, +0.5, -0.5}, {0.f, +1.f, 0.f}, {0.f, 0.f}},
+    {{-0.5, +0.5, +0.5}, {0.f, +1.f, 0.f}, {0.f, 1.f}},
 
-    { { -0.5, -0.5, -0.5 }, {  0.f, -1.f,  0.f }, { 0.f, 1.f } },
-    { { +0.5, -0.5, -0.5 }, {  0.f, -1.f,  0.f }, { 1.f, 1.f } },
-    { { +0.5, -0.5, +0.5 }, {  0.f, -1.f,  0.f }, { 1.f, 0.f } },
-    { { +0.5, -0.5, +0.5 }, {  0.f, -1.f,  0.f }, { 1.f, 0.f } },//bottom
-    { { -0.5, -0.5, +0.5 }, {  0.f, -1.f,  0.f }, { 0.f, 0.f } },
-    { { -0.5, -0.5, -0.5 }, {  0.f, -1.f,  0.f }, { 0.f, 1.f } }
+    {{-0.5, -0.5, -0.5}, {0.f, -1.f, 0.f}, {0.f, 1.f}},
+    {{+0.5, -0.5, -0.5}, {0.f, -1.f, 0.f}, {1.f, 1.f}},
+    {{+0.5, -0.5, +0.5}, {0.f, -1.f, 0.f}, {1.f, 0.f}},
+    {{+0.5, -0.5, +0.5}, {0.f, -1.f, 0.f}, {1.f, 0.f}},//bottom
+    {{-0.5, -0.5, +0.5}, {0.f, -1.f, 0.f}, {0.f, 0.f}},
+    {{-0.5, -0.5, -0.5}, {0.f, -1.f, 0.f}, {0.f, 1.f}}
 };
 
+///////////////////////////////cross/////////////////////////////////
 constant VertexData cross_verts[36] = {
     //                                               Texture
     //      Positions            Normals           Coordinates
-    { { +0.4, -0.5, +0.4 }, {  0.f,  0.f, -1.f }, { 0.f, 1.f } },
-    { { -0.4, -0.5, -0.4 }, {  0.f,  0.f, -1.f }, { 1.f, 1.f } },
-    { { -0.4, +0.5, -0.4 }, {  0.f,  0.f, -1.f }, { 1.f, 0.f } },
-    { { -0.4, +0.5, -0.4 }, {  0.f,  0.f, -1.f }, { 1.f, 0.f } },//back
-    { { +0.4, +0.5, +0.4 }, {  0.f,  0.f, -1.f }, { 0.f, 0.f } },
-    { { +0.4, -0.5, +0.4 }, {  0.f,  0.f, -1.f }, { 0.f, 1.f } },
+    {{+0.4, -0.5, +0.4}, {0.f, 0.f, -1.f}, {0.f, 1.f}},
+    {{-0.4, -0.5, -0.4}, {0.f, 0.f, -1.f}, {1.f, 1.f}},
+    {{-0.4, +0.5, -0.4}, {0.f, 0.f, -1.f}, {1.f, 0.f}},
+    {{-0.4, +0.5, -0.4}, {0.f, 0.f, -1.f}, {1.f, 0.f}},//back
+    {{+0.4, +0.5, +0.4}, {0.f, 0.f, -1.f}, {0.f, 0.f}},
+    {{+0.4, -0.5, +0.4}, {0.f, 0.f, -1.f}, {0.f, 1.f}},
     
-    { { -0.4, -0.5, +0.4 }, {  0.f,  0.f,  1.f }, { 0.f, 1.f } },
-    { { +0.4, -0.5, -0.4 }, {  0.f,  0.f,  1.f }, { 1.f, 1.f } },
-    { { +0.4, +0.5, -0.4 }, {  0.f,  0.f,  1.f }, { 1.f, 0.f } },
-    { { +0.4, +0.5, -0.4 }, {  0.f,  0.f,  1.f }, { 1.f, 0.f } },//front
-    { { -0.4, +0.5, +0.4 }, {  0.f,  0.f,  1.f }, { 0.f, 0.f } },
-    { { -0.4, -0.5, +0.4 }, {  0.f,  0.f,  1.f }, { 0.f, 1.f } },
+    {{-0.4, -0.5, +0.4}, {0.f, 0.f, +1.f}, {0.f, 1.f}},
+    {{+0.4, -0.5, -0.4}, {0.f, 0.f, +1.f}, {1.f, 1.f}},
+    {{+0.4, +0.5, -0.4}, {0.f, 0.f, +1.f}, {1.f, 0.f}},
+    {{+0.4, +0.5, -0.4}, {0.f, 0.f, +1.f}, {1.f, 0.f}},//front
+    {{-0.4, +0.5, +0.4}, {0.f, 0.f, +1.f}, {0.f, 0.f}},
+    {{-0.4, -0.5, +0.4}, {0.f, 0.f, +1.f}, {0.f, 1.f}},
 
-    { { +0.4, -0.5, -0.4 }, {  1.f,  0.f,  0.f }, { 0.f, 1.f } },
-    { { -0.4, -0.5, +0.4 }, {  1.f,  0.f,  0.f }, { 1.f, 1.f } },
-    { { -0.4, +0.5, +0.4 }, {  1.f,  0.f,  0.f }, { 1.f, 0.f } },
-    { { -0.4, +0.5, +0.4 }, {  1.f,  0.f,  0.f }, { 1.f, 0.f } },//right
-    { { +0.4, +0.5, -0.4 }, {  1.f,  0.f,  0.f }, { 0.f, 0.f } },
-    { { +0.4, -0.5, -0.4 }, {  1.f,  0.f,  0.f }, { 0.f, 1.f } },
+    {{+0.4, -0.5, -0.4}, {+1.f, 0.f, 0.f}, {0.f, 1.f}},
+    {{-0.4, -0.5, +0.4}, {+1.f, 0.f, 0.f}, {1.f, 1.f}},
+    {{-0.4, +0.5, +0.4}, {+1.f, 0.f, 0.f}, {1.f, 0.f}},
+    {{-0.4, +0.5, +0.4}, {+1.f, 0.f, 0.f}, {1.f, 0.f}},//right
+    {{+0.4, +0.5, -0.4}, {+1.f, 0.f, 0.f}, {0.f, 0.f}},
+    {{+0.4, -0.5, -0.4}, {+1.f, 0.f, 0.f}, {0.f, 1.f}},
 
-    { { -0.4, -0.5, -0.4 }, { -1.f,  0.f,  0.f }, { 0.f, 1.f } },
-    { { +0.4, -0.5, +0.4 }, { -1.f,  0.f,  0.f }, { 1.f, 1.f } },
-    { { +0.4, +0.5, +0.4 }, { -1.f,  0.f,  0.f }, { 1.f, 0.f } },
-    { { +0.4, +0.5, +0.4 }, { -1.f,  0.f,  0.f }, { 1.f, 0.f } },//left
-    { { -0.4, +0.5, -0.4 }, { -1.f,  0.f,  0.f }, { 0.f, 0.f } },
-    { { -0.4, -0.5, -0.4 }, { -1.f,  0.f,  0.f }, { 0.f, 1.f } },
-
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } },
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } },
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } },
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } },
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } },
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } },
-
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } },
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } },
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } },
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } },
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } },
-    { { 0.f,0.f,0.f }, {  0.f, 0.f, 0.f }, { 0.f, 0.f } }
+    {{-0.4, -0.5, -0.4}, {-1.f, 0.f, 0.f}, {0.f, 1.f}},
+    {{+0.4, -0.5, +0.4}, {-1.f, 0.f, 0.f}, {1.f, 1.f}},
+    {{+0.4, +0.5, +0.4}, {-1.f, 0.f, 0.f}, {1.f, 0.f}},
+    {{+0.4, +0.5, +0.4}, {-1.f, 0.f, 0.f}, {1.f, 0.f}},//left
+    {{-0.4, +0.5, -0.4}, {-1.f, 0.f, 0.f}, {0.f, 0.f}},
+    {{-0.4, -0.5, -0.4}, {-1.f, 0.f, 0.f}, {0.f, 1.f}},
 };
 
-v2f vertex vertexMain(  device const CameraData& cameraData [[buffer(1)]],
-                        device const  Chunk* chunkIn [[buffer(2)]],
-                        device const int* nuberOfBlocksInChunk [[buffer(3)]],
-                        device const int* texture_real_index [[buffer(4)]],
-                        device const int* texture_side_amounts [[buffer(5)]],
-                        uint counter [[vertex_id]],
-                        uint instance [[instance_id]]) {
+v2f vertex vertexMain(device const CameraData& cameraData [[buffer(1)]],
+                      device const  Chunk* chunkIn [[buffer(2)]],
+                      device const int* nuberOfBlocksInChunk [[buffer(3)]],
+                      device const int* texture_real_index [[buffer(4)]],
+                      device const int* texture_side_amounts [[buffer(5)]],
+                      device const int* chunkIndexes [[buffer(6)]],
+                      uint counter [[vertex_id]],
+                      uint instance [[instance_id]]) {
     v2f o;
     int blockNumber = 0;
     int chunkIndex = 0;
@@ -170,9 +161,8 @@ v2f vertex vertexMain(  device const CameraData& cameraData [[buffer(1)]],
             chunkIndex++;
         }
     }
-
     blockIndex = instance - blockNumber;
-    const device Chunk& chunk = chunkIn[chunkIndex];
+    const device Chunk& chunk = chunkIn[chunkIndexes[chunkIndex]];
 
     int block_sideID = counter/6;
 
@@ -182,7 +172,9 @@ v2f vertex vertexMain(  device const CameraData& cameraData [[buffer(1)]],
         if(counter > 23) {
             o.del = true;
         }
-        vd = cross_verts[counter];
+        else {
+            vd = cross_verts[counter];
+        }
     }
     else {
         vd = verts[counter];
@@ -190,7 +182,12 @@ v2f vertex vertexMain(  device const CameraData& cameraData [[buffer(1)]],
 
     float3 blockPos = GetPos(chunk.blocks[blockIndex]);
     float2 chunkPos = GetChunkPosition(chunk.chunkPos);
-    float4 pos = float4(vd.position + blockPos + float3(0,-50,0) + float3(chunkPos.x * 16,0,chunkPos.y * 16), 1.0);
+    float4 pos = float4(vd.position + blockPos + float3(0,0,0) + float3(chunkPos.x * 16,0,chunkPos.y * 16), 1.0);
+
+    float3 vectorT = cameraData.cameraPosition.xyz - pos.xyz;
+
+    o.tooFar = length(vectorT.xz);
+
     o.position = cameraData.perspectiveTransform * cameraData.worldTransform * pos;
     o.texcoord = vd.texcoord.xy;
 
@@ -224,8 +221,8 @@ v2f vertex vertexMain(  device const CameraData& cameraData [[buffer(1)]],
 
     return o;
 }
-
 half4 fragment fragmentMain(v2f in [[stage_in]], device Textures &textures [[buffer(0)]]) {
+    if(in.del || in.tooFar > 152) {discard_fragment();}
     sampler s;
     if(in.side == 20) {
         s = sampler(address::repeat, mag_filter::nearest, min_filter::nearest, mip_filter::none, lod_clamp(0.0, 0.0));
@@ -236,7 +233,7 @@ half4 fragment fragmentMain(v2f in [[stage_in]], device Textures &textures [[buf
 
     half4 texel = textures.pTextureArr[in.side].sample(s, in.texcoord);
 
-    if(texel.a < 0.1 || in.del) {discard_fragment();}
+    if(texel.a < 0.1) {discard_fragment();}
 
     return half4(texel);
 }

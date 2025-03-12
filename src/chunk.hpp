@@ -6,8 +6,9 @@
 #include <glm/glm.hpp>
 #include <simd/simd.h>
 
-const int chunkLine = 8;
+const int chunkLine = 32;
 const bool regenerate = false;
+const int renderDistance = 10;
 
 struct Chunk {
     int chunkPos;
@@ -20,7 +21,7 @@ struct ChunkToGPU {
 };
 
 struct NuberOfBlocksInChunk {
-    int nuberOfBlocks[chunkLine*chunkLine] = {};
+    int nuberOfBlocks[chunkLine*chunkLine];
 };
 
 struct NoiseMaps {

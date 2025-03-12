@@ -6,7 +6,7 @@ void Renderer::build_shaders(MTL::Device* device) {
 
     std::string tempShaderStr;
     std::string shaderStr = "";
-  
+
     std::ifstream shadeingFile;
     shadeingFile.open("./src/shaders.metal");
 
@@ -22,25 +22,25 @@ void Renderer::build_shaders(MTL::Device* device) {
     const char* pShaderStr = shaderStr.c_str();
 
     NS::Error* pError = nullptr;
-    MTL::Library* pLibrary = device->newLibrary( NS::String::string(pShaderStr, UTF8StringEncoding), nullptr, &pError );
-    if ( !pLibrary ) {
-        __builtin_printf( "%s", pError->localizedDescription()->utf8String() );
-        assert( false );
+    MTL::Library* pLibrary = device->newLibrary(NS::String::string(pShaderStr, UTF8StringEncoding), nullptr, &pError);
+    if (!pLibrary) {
+        __builtin_printf("%s", pError->localizedDescription()->utf8String());
+        assert(false);
     }
 
-    pVertexFunction = pLibrary->newFunction( NS::String::string("vertexMain", UTF8StringEncoding) );
-    pFragmentFunction = pLibrary->newFunction( NS::String::string("fragmentMain", UTF8StringEncoding) );
+    pVertexFunction = pLibrary->newFunction(NS::String::string("vertexMain", UTF8StringEncoding));
+    pFragmentFunction = pLibrary->newFunction(NS::String::string("fragmentMain", UTF8StringEncoding));
 
     MTL::RenderPipelineDescriptor* pRenderPipelineDescriptor = MTL::RenderPipelineDescriptor::alloc()->init();
-    pRenderPipelineDescriptor->setVertexFunction( pVertexFunction );
-    pRenderPipelineDescriptor->setFragmentFunction( pFragmentFunction );
-    pRenderPipelineDescriptor->colorAttachments()->object(0)->setPixelFormat( MTL::PixelFormat::PixelFormatRGBA8Unorm_sRGB );
+    pRenderPipelineDescriptor->setVertexFunction(pVertexFunction);
+    pRenderPipelineDescriptor->setFragmentFunction(pFragmentFunction);
+    pRenderPipelineDescriptor->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormat::PixelFormatRGBA8Unorm_sRGB);
     pRenderPipelineDescriptor->setDepthAttachmentPixelFormat( MTL::PixelFormat::PixelFormatDepth16Unorm );
 
-    pRenderPipelineState = device->newRenderPipelineState( pRenderPipelineDescriptor, &pError );
+    pRenderPipelineState = device->newRenderPipelineState(pRenderPipelineDescriptor, &pError);
     if ( !pRenderPipelineState ) {
-        __builtin_printf( "%s", pError->localizedDescription()->utf8String() );
-        assert( false );
+        __builtin_printf("%s", pError->localizedDescription()->utf8String());
+        assert(false);
     }
 
     pVertexFunction->release();
@@ -51,6 +51,7 @@ void Renderer::build_shaders(MTL::Device* device) {
     std::cout << "Shaders built" << std::endl;
 }
 #pragma endregion build_shader }
+
 #pragma region build_textures {
 /////////////////Load and create textures for copying to GPU///////////////////
 void Renderer::build_textures(MTL::Device* device) {
@@ -65,7 +66,6 @@ void Renderer::build_textures(MTL::Device* device) {
             if(textureNameData[i] == '%') {
                 break;
             }
-
             if(textureNameData[i] == ',') {
                 int counter = 0;
                 std::string outStr = "";
@@ -131,9 +131,6 @@ void Renderer::build_textures(MTL::Device* device) {
     }
     textureRealIndexFile.close();
 
-    // for(int i = 0; i < texture_names.size(); i++) {
-    //     std::cout << texture_names[i] << " " << texture_side_amounts.texture_side_amounts[i] << " " << texture_real_index.texture_real_index[i] << std::endl;
-    // }
     for (int i = 0; i < texture_names.size(); i++) {
         int texture_amount = texture_side_amounts.texture_side_amounts[i];
         std::string textureFileType = ".png";
@@ -192,7 +189,7 @@ void Renderer::build_textures(MTL::Device* device) {
 
     memcpy(_ptexture_side_amountsBufferVertex->contents(), &texture_side_amounts, texture_side_amountsDataSize);
 
-    _pNumberOfBlocksBufferVertex->didModifyRange(NS::Range::Make(0, _ptexture_side_amountsBufferVertex->length()));
+    _ptexture_side_amountsBufferVertex->didModifyRange(NS::Range::Make(0, _ptexture_side_amountsBufferVertex->length()));
     //////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////texture_real_index to GPU//////////////////////////////
     const size_t texture_real_indexDataSize = sizeof(Texture_real_index);
@@ -224,27 +221,16 @@ void Renderer::build_buffers(MTL::Device* device) {
         _pCameraDataBuffer[i] = device->newBuffer(cameraDataSize, MTL::ResourceStorageModeManaged);
     }
     /////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////Number of Blocks to GPU//////////////////////////
-    const size_t numberOfBlocksDataSize = sizeof(NuberOfBlocksInChunk);
-
-    MTL::Buffer* pNumberOfBlocksBufferVertex = device->newBuffer(numberOfBlocksDataSize, MTL::ResourceStorageModeManaged);
-
-    _pNumberOfBlocksBufferVertex = pNumberOfBlocksBufferVertex;
-
-    memcpy(_pNumberOfBlocksBufferVertex->contents(), &chunkClass.numberOfBlocksInChunk, numberOfBlocksDataSize);
-
-    _pNumberOfBlocksBufferVertex->didModifyRange(NS::Range::Make(0, _pNumberOfBlocksBufferVertex->length()));
-    /////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////Chunk data to GPU////////////////////////////////
     const size_t chunkDataSize = sizeof(ChunkToGPU) * chunkClass.chunkToGPU.size();
 
     MTL::Buffer* pArgumentBufferVertex = device->newBuffer(chunkDataSize, MTL::ResourceStorageModeManaged);
 
-    _pArgumentBufferVertex = pArgumentBufferVertex;
+    chunkVertexBuffer = pArgumentBufferVertex;
 
-    memcpy(_pArgumentBufferVertex->contents(), chunkClass.chunkToGPU.data(), chunkDataSize);
+    memcpy(chunkVertexBuffer->contents(), chunkClass.chunkToGPU.data(), chunkDataSize);
 
-    _pArgumentBufferVertex->didModifyRange(NS::Range::Make(0, _pArgumentBufferVertex->length()));
+    chunkVertexBuffer->didModifyRange(NS::Range::Make(0, chunkVertexBuffer->length()));
     /////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////Buffer for textures//////////////////////////////
     pArgumentEncoderFragment = pFragmentFunction->newArgumentEncoder(0);
@@ -323,6 +309,15 @@ void Renderer::run() {
 
     NS::Range textureRange = NS::Range(0, (sizeof(pTextureArr) / sizeof(pTextureArr[0])));
 
+    std::vector<int> chunkIndexToKeep = {};
+    chunkIndexToKeep.resize(chunkLine*chunkLine);
+
+    for(int i = 0; i < 3; i++) {
+        _pNumberOfBlocksBufferVertex[i] = context->device->newBuffer(sizeof(NuberOfBlocksInChunk), MTL::ResourceStorageModeManaged);
+        _pChunkIndexesToBeRenderd[i] = context->device->newBuffer(sizeof(int)*chunkIndexToKeep.size(), MTL::ResourceStorageModeManaged);
+    }
+    bool first = true;
+
     std::cout << "Rendering" << std::endl;
 
     while (!glfwWindowShouldClose(window->glfwWindow)) {
@@ -334,19 +329,21 @@ void Renderer::run() {
         _frame = (_frame + 1) % kMaxFramesInFlight;
 
         MTL::CommandBuffer* pCommandBuffer = context->commandQueue->commandBuffer();
-        dispatch_semaphore_wait( _semaphore, DISPATCH_TIME_FOREVER );
-        pCommandBuffer->addCompletedHandler( ^void( MTL::CommandBuffer* pCommandBuffer ){
-            dispatch_semaphore_signal( _semaphore );
+        dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
+        pCommandBuffer->addCompletedHandler(^void(MTL::CommandBuffer* pCommandBuffer){
+            dispatch_semaphore_signal(_semaphore);
         });
 
-        MTL::Buffer* pCameraDataBuffer = _pCameraDataBuffer[ _frame ];
-        if (glfwGetWindowAttrib(window->glfwWindow, GLFW_FOCUSED)) {
+        MTL::Buffer* pCameraDataBuffer = _pCameraDataBuffer[_frame];
+        if(glfwGetWindowAttrib(window->glfwWindow, GLFW_FOCUSED) || first) {
             camera->update(pCameraDataBuffer,window->glfwWindow,window->window_size,delta_time, window);
+            first = false;
         }
 
         camera->pCameraData->worldTransform = camera->view_mat;
-        camera->pCameraData->worldNormalTransform = math::discardTranslation( camera->pCameraData->worldTransform );
-        pCameraDataBuffer->didModifyRange( NS::Range::Make( 0, sizeof( CameraData ) ) );
+        camera->pCameraData->worldNormalTransform = math::discardTranslation(camera->pCameraData->worldTransform);
+        camera->pCameraData->cameraPosition.x = camera->position.x; camera->pCameraData->cameraPosition.y = camera->position.y; camera->pCameraData->cameraPosition.z = camera->position.z;
+        pCameraDataBuffer->didModifyRange(NS::Range::Make(0, sizeof(CameraData)));
 
         MTL::RenderPassDescriptor* pRenderPassDescriptor = MTL::RenderPassDescriptor::alloc()->init();
 
@@ -412,27 +409,53 @@ void Renderer::run() {
             }
         }
         else {
+            ImGui::SetWindowSize(" ", ImVec2(0, 0), 0);
             ImGui::SetWindowPos(" ", ImVec2(5,5), 0);
             ImGui::Begin(" ", p_open, window_flags);
             ImGui::SetWindowFontScale(2);
-            ImGui::Text("%.1fFPS, %.3fms", ImGui::GetIO().Framerate, 1000.0f / ImGui::GetIO().Framerate);
+            ImGui::Text("X: %.0f, Y: %.0f, Z: %.0f\n%.1fFPS, %.3fms", camera->position.x, camera->position.y, camera->position.z, ImGui::GetIO().Framerate, 1000.0f / ImGui::GetIO().Framerate);
             ImGui::End();
         }
         /////////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////Set some things and rende to screen////////////////////////////
         ImGui::Render();
 
-        MTL::RenderCommandEncoder* pCommandEncoder = pCommandBuffer->renderCommandEncoder( pRenderPassDescriptor );
+        int blockCount = 0;
+        NuberOfBlocksInChunk numberOfBlocksInChunk = {};
+        int counter = 0;
+        for(int i = 0; i < chunkClass.chunkCount;i++) {
+            float temp = glm::distance(glm::vec3{camera->position.x, 0.0, camera->position.z}, glm::vec3{GetChunkPosition(chunkClass.chunkToGPU[i].chunkPos).x * 16 + 8, 0.0, GetChunkPosition(chunkClass.chunkToGPU[i].chunkPos).y * 16 + 8});
+            if(temp <= renderDistance*16) {
+                chunkIndexToKeep[counter] = i;
+                numberOfBlocksInChunk.nuberOfBlocks[counter] = chunkClass.numberOfBlocksInChunk.nuberOfBlocks[i];
+                blockCount += chunkClass.numberOfBlocksInChunk.nuberOfBlocks[i];
+                counter++;
+            }
+        }
+        MTL::Buffer* chunkIndexBuffer = _pChunkIndexesToBeRenderd[_frame];
+
+        memcpy(chunkIndexBuffer->contents(), chunkIndexToKeep.data(), sizeof(int) * chunkIndexToKeep.size());
+
+        chunkIndexBuffer->didModifyRange(NS::Range::Make(0, chunkIndexBuffer->length()));
+
+        MTL::Buffer* numberOfBlocksBuffer = _pNumberOfBlocksBufferVertex[_frame];
+
+        memcpy(numberOfBlocksBuffer->contents(), &numberOfBlocksInChunk, sizeof(NuberOfBlocksInChunk));
+
+        numberOfBlocksBuffer->didModifyRange(NS::Range::Make(0, numberOfBlocksBuffer->length()));
+
+        MTL::RenderCommandEncoder* pCommandEncoder = pCommandBuffer->renderCommandEncoder( pRenderPassDescriptor);
 
         pCommandEncoder->setRenderPipelineState( pRenderPipelineState );
         pCommandEncoder->setDepthStencilState( pDepthStencilDescriptor );
-        
+
         //////////////////////////////////////Set buffers//////////////////////////////////////////
         pCommandEncoder->setVertexBuffer( pCameraDataBuffer, 0, 1 );
-        pCommandEncoder->setVertexBuffer( _pArgumentBufferVertex, 0, 2 );
-        pCommandEncoder->setVertexBuffer( _pNumberOfBlocksBufferVertex, 0, 3 );
+        pCommandEncoder->setVertexBuffer( chunkVertexBuffer, 0, 2 );
+        pCommandEncoder->setVertexBuffer( numberOfBlocksBuffer, 0, 3 );
         pCommandEncoder->setVertexBuffer( _ptexture_real_indexBufferVertex, 0, 4 );
         pCommandEncoder->setVertexBuffer( _ptexture_side_amountsBufferVertex, 0, 5 );
+        pCommandEncoder->setVertexBuffer( chunkIndexBuffer, 0, 6 );
 
         pArgumentEncoderFragment->setTextures( pTextureArr, textureRange);
         pCommandEncoder->setFragmentBuffer(pArgumentBufferFragment, 0, 0);
@@ -441,7 +464,7 @@ void Renderer::run() {
         pCommandEncoder->setCullMode(MTL::CullModeBack);
         pCommandEncoder->setFrontFacingWinding(MTL::Winding::WindingCounterClockwise);
 
-        pCommandEncoder->drawPrimitives(MTL::PrimitiveType::PrimitiveTypeTriangle, 0, 36, chunkClass.blockCounter);
+        pCommandEncoder->drawPrimitives(MTL::PrimitiveType::PrimitiveTypeTriangle, 0, 36, blockCount);
 
         pCommandEncoder->setCullMode(MTL::CullModeBack);
         pCommandEncoder->setFrontFacingWinding(MTL::Winding::WindingClockwise);
