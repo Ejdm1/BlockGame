@@ -6,3 +6,8 @@ compile_commands.json
 imgui.ini
 .vscode/
 Textures_1/
+map8x8.txt
+map16x16.txt
+map32x32.txt
+map64x64.txt
+map128x128.txt

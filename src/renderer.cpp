@@ -4,15 +4,17 @@
 void Renderer::build_shaders(MTL::Device* device) {
     using NS::StringEncoding::UTF8StringEncoding;
 
-    std::string tempShaderStr;
-    std::string shaderStr = "";
-
+    //////////////////////////////////////////////////////Get shader and load its functons/////////////////////////////////////////////////////
     std::ifstream shadeingFile;
     shadeingFile.open("./src/shaders.metal");
 
     if (!shadeingFile.is_open()) {
-        std::cout << "Error: Couldnt be opened" << std::endl;
+        std::cout << "Shader file could not be opened" << std::endl;
+        exit(1);
     }
+
+    std::string tempShaderStr;
+    std::string shaderStr = "";
 
     while (getline (shadeingFile, tempShaderStr)) {
         shaderStr =  shaderStr + tempShaderStr + "\n";
@@ -28,20 +30,25 @@ void Renderer::build_shaders(MTL::Device* device) {
         assert(false);
     }
 
+    ///////////Get vertext and fragment functions///////////////////
     pVertexFunction = pLibrary->newFunction(NS::String::string("vertexMain", UTF8StringEncoding));
     pFragmentFunction = pLibrary->newFunction(NS::String::string("fragmentMain", UTF8StringEncoding));
-
+    ///////////////////////////////////////////////////////////////
+    ////////////////Set vertex and fragment functions for GPUs pipeline descriptor////////////////////////////////
     MTL::RenderPipelineDescriptor* pRenderPipelineDescriptor = MTL::RenderPipelineDescriptor::alloc()->init();
     pRenderPipelineDescriptor->setVertexFunction(pVertexFunction);
     pRenderPipelineDescriptor->setFragmentFunction(pFragmentFunction);
     pRenderPipelineDescriptor->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormat::PixelFormatRGBA8Unorm_sRGB);
     pRenderPipelineDescriptor->setDepthAttachmentPixelFormat( MTL::PixelFormat::PixelFormatDepth16Unorm );
-
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////And finaly set it into pipeline state and check for errors//////////////////////////////////
     pRenderPipelineState = device->newRenderPipelineState(pRenderPipelineDescriptor, &pError);
     if ( !pRenderPipelineState ) {
         __builtin_printf("%s", pError->localizedDescription()->utf8String());
         assert(false);
     }
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     pVertexFunction->release();
     pFragmentFunction->release();
@@ -53,12 +60,12 @@ void Renderer::build_shaders(MTL::Device* device) {
 #pragma endregion build_shader }
 
 #pragma region build_textures {
-/////////////////Load and create textures for copying to GPU///////////////////
+////////////////////////////////////////////////Load and create textures for copying to GPU/////////////////////////////////////////////////
 void Renderer::build_textures(MTL::Device* device) {
     Texture_side_amounts texture_side_amounts;
     Texture_real_index texture_real_index;
     std::vector<std::string> texture_names = {};
-
+    ////////////////Get all texture names from premade text file///////////////////
     std::ifstream textureNamesFile("texture_names.txt");
     std::string textureNameData;
     while(std::getline(textureNamesFile, textureNameData)) {
@@ -85,6 +92,7 @@ void Renderer::build_textures(MTL::Device* device) {
         } 
     }
     textureNamesFile.close();
+    ///////////////////////////////////////////////////////////////////////////////
 
     int size_x = 0;
     int size_y = 0;
@@ -92,6 +100,7 @@ void Renderer::build_textures(MTL::Device* device) {
     int indexCounter = 0;
     int count = 1;
 
+    ////////////Load how many textures does specific block have 1 or 3/////////////
     std::ifstream textureAmountsFile("texture_amounts.txt");
     std::string indexAmountsData;
     int indexAmountsCounter = 0;
@@ -109,7 +118,9 @@ void Renderer::build_textures(MTL::Device* device) {
         } 
     }
     textureAmountsFile.close();
-
+    ///////////////////////////////////////////////////////////////////////////////
+    /////////////////Load textures real indexes which is used on GPU because I need to determine////////////////
+    /////////////////right index since I have blocks with one texture or three textures/////////////////////////
     std::ifstream textureRealIndexFile("texture_real_index.txt");
     std::string indexRealData;
     int indexRealCounter = 0;
@@ -130,7 +141,8 @@ void Renderer::build_textures(MTL::Device* device) {
         }
     }
     textureRealIndexFile.close();
-
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////Load textures and create array of them/////////////////////////////////////////////////////
     for (int i = 0; i < texture_names.size(); i++) {
         int texture_amount = texture_side_amounts.texture_side_amounts[i];
         std::string textureFileType = ".png";
@@ -138,9 +150,11 @@ void Renderer::build_textures(MTL::Device* device) {
         texturesDict.insert({texture_names[i], i});
         for(int j = 0; j < texture_amount;j++) {
             std::string textureName = texture_names[i];
+            ////////////////////Check if block has three texture and add right end(top,bottom,side)/////////////////
             if(texture_amount == 3) {
                 textureName += texture_end_names[j];
             }
+            ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
             std::string textureFullName = texturePath + textureName + textureFileType;
 
@@ -157,12 +171,14 @@ void Renderer::build_textures(MTL::Device* device) {
                 }
                 std::cout << textureName << "> Number: " << count << " Found" << std::endl;
 
+                ///////////////////Setup texture descriptor(width, height, color format, texture type and usage)///////////////////
                 pTextureDescriptor->setWidth( static_cast<NS::UInteger>(size_x) );
                 pTextureDescriptor->setHeight( static_cast<NS::UInteger>(size_y) );
                 pTextureDescriptor->setPixelFormat( MTL::PixelFormatRGBA8Unorm_sRGB );
                 pTextureDescriptor->setTextureType( MTL::TextureType2D );
                 pTextureDescriptor->setStorageMode( MTL::StorageModeManaged );
                 pTextureDescriptor->setUsage( MTL::ResourceUsageSample | MTL::ResourceUsageRead );
+                ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
                 pTextureArr[indexCounter] = device->newTexture( pTextureDescriptor );
                 pTextureArr[indexCounter]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, texture, size_x * 4 );
@@ -179,6 +195,7 @@ void Renderer::build_textures(MTL::Device* device) {
             count++;
         }
     }
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     ///////////////////////////texture_side_amounts to GPU////////////////////////////
     const size_t texture_side_amountsDataSize = sizeof(Texture_side_amounts);
@@ -206,7 +223,7 @@ void Renderer::build_textures(MTL::Device* device) {
     std::cout << "Textures built\n" << std::endl;
 }
 #pragma endregion build_textures }
-/////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma region build_buffers {
 void Renderer::build_buffers(MTL::Device* device) {
@@ -312,10 +329,12 @@ void Renderer::run() {
     std::vector<int> chunkIndexToKeep = {};
     chunkIndexToKeep.resize(chunkLine*chunkLine);
 
+    ////////////////////////Define buffers for these tripple buffered vars////////////////////////
     for(int i = 0; i < 3; i++) {
         _pNumberOfBlocksBufferVertex[i] = context->device->newBuffer(sizeof(NuberOfBlocksInChunk), MTL::ResourceStorageModeManaged);
         _pChunkIndexesToBeRenderd[i] = context->device->newBuffer(sizeof(int)*chunkIndexToKeep.size(), MTL::ResourceStorageModeManaged);
     }
+    //////////////////////////////////////////////////////////////////////////////////////////////
     bool first = true;
 
     std::cout << "Rendering" << std::endl;
@@ -334,6 +353,7 @@ void Renderer::run() {
             dispatch_semaphore_signal(_semaphore);
         });
 
+        ////////////////////////Update camera state////////////////////////
         MTL::Buffer* pCameraDataBuffer = _pCameraDataBuffer[_frame];
         if(glfwGetWindowAttrib(window->glfwWindow, GLFW_FOCUSED) || first) {
             camera->update(pCameraDataBuffer,window->glfwWindow,window->window_size,delta_time, window);
@@ -344,6 +364,7 @@ void Renderer::run() {
         camera->pCameraData->worldNormalTransform = math::discardTranslation(camera->pCameraData->worldTransform);
         camera->pCameraData->cameraPosition.x = camera->position.x; camera->pCameraData->cameraPosition.y = camera->position.y; camera->pCameraData->cameraPosition.z = camera->position.z;
         pCameraDataBuffer->didModifyRange(NS::Range::Make(0, sizeof(CameraData)));
+        ///////////////////////////////////////////////////////////////////
 
         MTL::RenderPassDescriptor* pRenderPassDescriptor = MTL::RenderPassDescriptor::alloc()->init();
 
@@ -362,7 +383,7 @@ void Renderer::run() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         /////////////////////////////////////////////////////////////////////////////////
-        //////////////Creating FPS counter or menu if active(imGui)////////////////
+        //////////////Creating FPS counter or menu if active(using imGui)////////////////
         if(window->menu) {
             if(window->options) {
                 ImGui::SetWindowSize("Options",ImVec2(menu_size.x, menu_size.y), 0);
@@ -417,7 +438,7 @@ void Renderer::run() {
             ImGui::End();
         }
         /////////////////////////////////////////////////////////////////////////////////
-        ////////////////////////////////Set some things and rende to screen////////////////////////////
+        ////////////////////////////////Set some things and render to screen////////////////////////////
         ImGui::Render();
 
         int blockCount = 0;
