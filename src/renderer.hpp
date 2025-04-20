@@ -24,34 +24,30 @@
 struct Renderer {
     void build_shaders(MTL::Device* device);
     void build_buffers(MTL::Device* device);
-    void build_frame(MTL::Device* device);
     void build_spencil(MTL::Device* device);
     void build_textures(MTL::Device* device);
     void run();
     static constexpr size_t kMaxFramesInFlight = 3;
-    MTL::RenderPipelineState* pRenderPipelineState;
-    MTL::Buffer* _pVertexColorsBuffer;
-    MTL::Library* _pShaderLibrary;
-    MTL::Buffer* _pFrameData[3];
-    int _frame = 0;
+    MTL::RenderPipelineState* RenderPipelineState;
+    MTL::DepthStencilState* DepthStencilState;
+    int frame = 0;
     dispatch_semaphore_t _semaphore;
-    MTL::DepthStencilState* pDepthStencilDescriptor;
-    MTL::Buffer* _pCameraDataBuffer[kMaxFramesInFlight];
-    MTL::Buffer* _pnumberOfBlocksInChunkBufferVertex;
-    MTL::ArgumentEncoder* pArgumentEncoderFragment;
-    MTL::Buffer* pArgumentBufferFragment;
+    MTL::ArgumentEncoder* ArgumentEncoderFragment;
+    MTL::Buffer* ArgumentBufferFragment;
     MTL::Buffer* chunkVertexBuffer;
-    MTL::Buffer* _pNumberOfBlocksBufferVertex[kMaxFramesInFlight];
-    MTL::Buffer* _pChunkIndexesToBeRenderd[kMaxFramesInFlight];
-    MTL::Buffer* _ptexture_side_amountsBufferVertex;
-    MTL::Buffer* _ptexture_real_indexBufferVertex;
-    MTL::Texture* pTextureArr[128] = {};
-    MTL::Function* pFragmentFunction;
-    MTL::Function* pVertexFunction;
+    MTL::Buffer* CameraDataBuffer[kMaxFramesInFlight];
+    MTL::Buffer* NumberOfBlocksBufferVertex[kMaxFramesInFlight];
+    MTL::Buffer* ChunkIndexesToBeRenderd[kMaxFramesInFlight];
+    MTL::Buffer* texture_side_amounts_buffer_vertex;
+    MTL::Buffer* texture_real_index_buffer_vertex;
+    MTL::Texture* TextureArr[128] = {};
+    MTL::Function* FragmentFunction;
+    MTL::Function* VertexFunction;
     float delta_time = 0.f;
-    MTL::RenderCommandEncoder* pCommandEncoder;
-    bool* p_open;
+    MTL::RenderCommandEncoder* CommandEncoder;
+    bool* open;
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration;
+    std::vector<int> chunkIndexToKeep = {};
 
     int instanceCount = 16*16*128;
     std::unordered_map<std::string, int> texturesDict;
@@ -70,14 +66,4 @@ struct Texture_side_amounts {
 
 struct Texture_real_index {
     int texture_real_index[128] = {};
-};
-
-struct FrameData {
-    float angle;
-};
-
-struct VertexData {
-    simd::float3 position;
-    simd::float3 normal;
-    simd::float2 texcoord;
 };

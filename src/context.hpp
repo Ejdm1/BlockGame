@@ -10,6 +10,6 @@ struct Context {
     MTL::Device* device;
     CA::MetalLayer* metalLayer;
     NS::Window* ns_window;
-    CA::MetalDrawable* pMetalDrawable;
+    CA::MetalDrawable* MetalDrawable;
     MTL::CommandQueue* commandQueue;
 }; 

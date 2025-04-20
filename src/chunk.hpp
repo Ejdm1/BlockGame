@@ -8,7 +8,7 @@
 
 const int chunkLine = 32;
 const bool regenerate = false;
-const int renderDistance = 10;
+const int renderDistance = 9;
 
 struct Chunk {
     int chunkPos;
@@ -37,7 +37,6 @@ struct ChunkClass {
     int seed;
     int blockCounter = 0;
 };
-
 //Saveing block data into single int x,y,z,blockID(4bits x, 8bits y, 4bits z, 14bits blockID)//
 inline int blockFace(glm::vec3 pos, int block_id) {
     int data = 0;
@@ -53,7 +52,6 @@ inline int blockFace(glm::vec3 pos, int block_id) {
     return data;
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////
-
 //////////////////Move bits in integer to get stored values//////////////////////
 inline float MoveBits(int bitAmount, int bitsRight, int data) {
     int shiftedRight = data >> bitsRight;

@@ -1,11 +1,9 @@
 build/
 .cache/
-lukas/
 compile_commands.json
 .DS_Store
 imgui.ini
 .vscode/
-Textures_1/
 map8x8.txt
 map16x16.txt
 map32x32.txt

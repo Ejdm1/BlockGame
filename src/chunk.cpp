@@ -12,12 +12,12 @@ FastNoise::SmartNode<> Generate_Terrain() {
     FractalFBm->SetLacunarity(4.0f);
     auto DomainScale = FastNoise::New<FastNoise::DomainScale>();
     DomainScale->SetSource(FractalFBm);
-    DomainScale->SetScale(1.64f);//0.86
-    auto PosationOutput = FastNoise::New<FastNoise::PositionOutput>();
-    PosationOutput->Set<FastNoise::Dim::Y>(6.72f);
+    DomainScale->SetScale(1.64f);
+    auto PositionOutput = FastNoise::New<FastNoise::PositionOutput>();
+    PositionOutput->Set<FastNoise::Dim::Y>(6.72f);
     auto add = FastNoise::New<FastNoise::Add>();
     add->SetLHS(DomainScale);
-    add->SetRHS(PosationOutput);
+    add->SetRHS(PositionOutput);
 
     return add;
 }
@@ -113,10 +113,11 @@ void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict
 
                 for (auto& t : threads) {
                     t.join();
-                    std::cout << "Generating chunks: " << round((float)count/(float)(chunkCount-1)*100) << "%" << "\t\r" << std::flush;
+                    std::cout << "Generating chunks: " << round((float)count/(float)(chunkCount-1)*100) << "%, " << k << "/" << chunkLine/32*chunkLine/32 << "\t\r" << std::flush;
                     count++;
                 }
             }
+            std::cout << "Generating chunks: " << round((float)count/(float)(chunkCount-1)*100) << "%, " << chunkLine/32*chunkLine/32 << "/" << chunkLine/32*chunkLine/32 << "\t\r" << std::flush;
         }
 
         int count = 0;
@@ -353,12 +354,12 @@ void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict
     chunkToGPU.resize(chunkCount);
     std::memset(chunkToGPU.data(), 0, sizeof(ChunkToGPU) * chunkToGPU.size());
 
-    int aijfgoiusdagfui = 0;
+    int counter = 0;
     for(int c = 0; c < chunkCount; c++) {
         for(int i = 0; i < numberOfBlocksInChunk.nuberOfBlocks[c]; i++) {
-            chunkToGPU[c].blocks[i] = blocks[i + aijfgoiusdagfui];
+            chunkToGPU[c].blocks[i] = blocks[i + counter];
         }
-        aijfgoiusdagfui += numberOfBlocksInChunk.nuberOfBlocks[c];
+        counter += numberOfBlocksInChunk.nuberOfBlocks[c];
         chunkToGPU[c].chunkPos = loadedChunkPos[c];
     }
     /////////////////////////////////////////////////////////////////////////////////

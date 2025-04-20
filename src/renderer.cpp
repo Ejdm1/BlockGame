@@ -21,39 +21,38 @@ void Renderer::build_shaders(MTL::Device* device) {
     }
     shadeingFile.close();
 
-    const char* pShaderStr = shaderStr.c_str();
+    const char* ShaderStr = shaderStr.c_str();
 
-    NS::Error* pError = nullptr;
-    MTL::Library* pLibrary = device->newLibrary(NS::String::string(pShaderStr, UTF8StringEncoding), nullptr, &pError);
-    if (!pLibrary) {
-        __builtin_printf("%s", pError->localizedDescription()->utf8String());
+    NS::Error* Error = nullptr;
+    MTL::Library* Library = device->newLibrary(NS::String::string(ShaderStr, UTF8StringEncoding), nullptr, &Error);
+    if (!Library) {
+        __builtin_printf("%s", Error->localizedDescription()->utf8String());
         assert(false);
     }
 
     ///////////Get vertext and fragment functions///////////////////
-    pVertexFunction = pLibrary->newFunction(NS::String::string("vertexMain", UTF8StringEncoding));
-    pFragmentFunction = pLibrary->newFunction(NS::String::string("fragmentMain", UTF8StringEncoding));
+    VertexFunction = Library->newFunction(NS::String::string("vertexMain", UTF8StringEncoding));
+    FragmentFunction = Library->newFunction(NS::String::string("fragmentMain", UTF8StringEncoding));
     ///////////////////////////////////////////////////////////////
     ////////////////Set vertex and fragment functions for GPUs pipeline descriptor////////////////////////////////
-    MTL::RenderPipelineDescriptor* pRenderPipelineDescriptor = MTL::RenderPipelineDescriptor::alloc()->init();
-    pRenderPipelineDescriptor->setVertexFunction(pVertexFunction);
-    pRenderPipelineDescriptor->setFragmentFunction(pFragmentFunction);
-    pRenderPipelineDescriptor->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormat::PixelFormatRGBA8Unorm_sRGB);
-    pRenderPipelineDescriptor->setDepthAttachmentPixelFormat( MTL::PixelFormat::PixelFormatDepth16Unorm );
+    MTL::RenderPipelineDescriptor* RenderPipelineDescriptor = MTL::RenderPipelineDescriptor::alloc()->init();
+    RenderPipelineDescriptor->setVertexFunction(VertexFunction);
+    RenderPipelineDescriptor->setFragmentFunction(FragmentFunction);
+    RenderPipelineDescriptor->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormat::PixelFormatRGBA8Unorm_sRGB);
+    RenderPipelineDescriptor->setDepthAttachmentPixelFormat(MTL::PixelFormat::PixelFormatDepth16Unorm);
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////And finaly set it into pipeline state and check for errors//////////////////////////////////
-    pRenderPipelineState = device->newRenderPipelineState(pRenderPipelineDescriptor, &pError);
-    if ( !pRenderPipelineState ) {
-        __builtin_printf("%s", pError->localizedDescription()->utf8String());
+    RenderPipelineState = device->newRenderPipelineState(RenderPipelineDescriptor, &Error);
+    if ( !RenderPipelineState ) {
+        __builtin_printf("%s", Error->localizedDescription()->utf8String());
         assert(false);
     }
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    pVertexFunction->release();
-    pFragmentFunction->release();
-    pRenderPipelineDescriptor->release();
-    _pShaderLibrary = pLibrary;
+    VertexFunction->release();
+    FragmentFunction->release();
+    RenderPipelineDescriptor->release();
     
     std::cout << "Shaders built" << std::endl;
 }
@@ -164,7 +163,7 @@ void Renderer::build_textures(MTL::Device* device) {
 
             size_t spaces = 32 - textureName.length();
             if(texture != nullptr) {
-                MTL::TextureDescriptor* pTextureDescriptor = MTL::TextureDescriptor::alloc()->init();
+                MTL::TextureDescriptor* TextureDescriptor = MTL::TextureDescriptor::alloc()->init();
 
                 for (int k = 0; k < spaces; k++) {
                     textureName += "-";
@@ -172,18 +171,18 @@ void Renderer::build_textures(MTL::Device* device) {
                 std::cout << textureName << "> Number: " << count << " Found" << std::endl;
 
                 ///////////////////Setup texture descriptor(width, height, color format, texture type and usage)///////////////////
-                pTextureDescriptor->setWidth( static_cast<NS::UInteger>(size_x) );
-                pTextureDescriptor->setHeight( static_cast<NS::UInteger>(size_y) );
-                pTextureDescriptor->setPixelFormat( MTL::PixelFormatRGBA8Unorm_sRGB );
-                pTextureDescriptor->setTextureType( MTL::TextureType2D );
-                pTextureDescriptor->setStorageMode( MTL::StorageModeManaged );
-                pTextureDescriptor->setUsage( MTL::ResourceUsageSample | MTL::ResourceUsageRead );
+                TextureDescriptor->setWidth( static_cast<NS::UInteger>(size_x) );
+                TextureDescriptor->setHeight( static_cast<NS::UInteger>(size_y) );
+                TextureDescriptor->setPixelFormat( MTL::PixelFormatRGBA8Unorm_sRGB );
+                TextureDescriptor->setTextureType( MTL::TextureType2D );
+                TextureDescriptor->setStorageMode( MTL::StorageModeManaged );
+                TextureDescriptor->setUsage( MTL::ResourceUsageSample | MTL::ResourceUsageRead );
                 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-                pTextureArr[indexCounter] = device->newTexture( pTextureDescriptor );
-                pTextureArr[indexCounter]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, texture, size_x * 4 );
+                TextureArr[indexCounter] = device->newTexture( TextureDescriptor );
+                TextureArr[indexCounter]->replaceRegion( MTL::Region( 0, 0, 0, size_x, size_y, 1 ), 0, texture, size_x * 4 );
                 stbi_image_free(texture);
-                pTextureDescriptor->release();
+                TextureDescriptor->release();
                 indexCounter++;
             }
             else {
@@ -200,24 +199,24 @@ void Renderer::build_textures(MTL::Device* device) {
     ///////////////////////////texture_side_amounts to GPU////////////////////////////
     const size_t texture_side_amountsDataSize = sizeof(Texture_side_amounts);
 
-    MTL::Buffer* ptexture_side_amountsBufferVertex = device->newBuffer(texture_side_amountsDataSize, MTL::ResourceStorageModeManaged);
+    MTL::Buffer* texture_side_amounts_buffer_vertexL = device->newBuffer(texture_side_amountsDataSize, MTL::ResourceStorageModeManaged);
 
-    _ptexture_side_amountsBufferVertex = ptexture_side_amountsBufferVertex;
+    texture_side_amounts_buffer_vertex = texture_side_amounts_buffer_vertexL;
 
-    memcpy(_ptexture_side_amountsBufferVertex->contents(), &texture_side_amounts, texture_side_amountsDataSize);
+    memcpy(texture_side_amounts_buffer_vertex->contents(), &texture_side_amounts, texture_side_amountsDataSize);
 
-    _ptexture_side_amountsBufferVertex->didModifyRange(NS::Range::Make(0, _ptexture_side_amountsBufferVertex->length()));
+    texture_side_amounts_buffer_vertex->didModifyRange(NS::Range::Make(0, texture_side_amounts_buffer_vertex->length()));
     //////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////texture_real_index to GPU//////////////////////////////
     const size_t texture_real_indexDataSize = sizeof(Texture_real_index);
 
-    MTL::Buffer* ptexture_real_indexBufferVertex = device->newBuffer(texture_real_indexDataSize, MTL::ResourceStorageModeManaged);
+    MTL::Buffer* texture_real_index_buffer_vertexL = device->newBuffer(texture_real_indexDataSize, MTL::ResourceStorageModeManaged);
 
-    _ptexture_real_indexBufferVertex = ptexture_real_indexBufferVertex;
+    texture_real_index_buffer_vertex = texture_real_index_buffer_vertexL;
 
-    memcpy(_ptexture_real_indexBufferVertex->contents(), &texture_real_index, texture_real_indexDataSize);
+    memcpy(texture_real_index_buffer_vertex->contents(), &texture_real_index, texture_real_indexDataSize);
 
-    _ptexture_real_indexBufferVertex->didModifyRange(NS::Range::Make(0, _ptexture_real_indexBufferVertex->length()));
+    texture_real_index_buffer_vertex->didModifyRange(NS::Range::Make(0, texture_real_index_buffer_vertex->length()));
     //////////////////////////////////////////////////////////////////////////////////
 
     std::cout << "Textures built\n" << std::endl;
@@ -232,30 +231,31 @@ void Renderer::build_buffers(MTL::Device* device) {
 
     chunkClass.generateChunk(texturesDict);
 
-    /////////////Creating buffer for camera data and saveing them into it////////////
-    const size_t cameraDataSize = kMaxFramesInFlight * sizeof( CameraData );
-    for ( size_t i = 0; i < kMaxFramesInFlight; i++ ) {
-        _pCameraDataBuffer[i] = device->newBuffer(cameraDataSize, MTL::ResourceStorageModeManaged);
+    //////////////////////Creating buffers for tripple buffering/////////////////////
+    chunkIndexToKeep.resize(chunkLine*chunkLine);
+    for (int i = 0; i < kMaxFramesInFlight; i++) {
+        CameraDataBuffer[i] = device->newBuffer(kMaxFramesInFlight * sizeof(CameraDataS), MTL::ResourceStorageModeManaged);
+        NumberOfBlocksBufferVertex[i] = device->newBuffer(sizeof(NuberOfBlocksInChunk), MTL::ResourceStorageModeManaged);
+        ChunkIndexesToBeRenderd[i] = device->newBuffer(sizeof(int)*chunkIndexToKeep.size(), MTL::ResourceStorageModeManaged);
     }
     /////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////Chunk data to GPU////////////////////////////////
     const size_t chunkDataSize = sizeof(ChunkToGPU) * chunkClass.chunkToGPU.size();
 
-    MTL::Buffer* pArgumentBufferVertex = device->newBuffer(chunkDataSize, MTL::ResourceStorageModeManaged);
+    MTL::Buffer* ArgumentBufferVertex = device->newBuffer(chunkDataSize, MTL::ResourceStorageModeManaged);
 
-    chunkVertexBuffer = pArgumentBufferVertex;
+    chunkVertexBuffer = ArgumentBufferVertex;
 
     memcpy(chunkVertexBuffer->contents(), chunkClass.chunkToGPU.data(), chunkDataSize);
 
     chunkVertexBuffer->didModifyRange(NS::Range::Make(0, chunkVertexBuffer->length()));
     /////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////Buffer for textures//////////////////////////////
-    pArgumentEncoderFragment = pFragmentFunction->newArgumentEncoder(0);
+    ArgumentEncoderFragment = FragmentFunction->newArgumentEncoder(0);
 
-    size_t argumentBufferLengthFragment = pArgumentEncoderFragment->encodedLength();
-    pArgumentBufferFragment = device->newBuffer(argumentBufferLengthFragment, MTL::ResourceStorageModeManaged);
+    ArgumentBufferFragment = device->newBuffer(ArgumentEncoderFragment->encodedLength(), MTL::ResourceStorageModeManaged);
 
-    pArgumentEncoderFragment->setArgumentBuffer(pArgumentBufferFragment, 0);
+    ArgumentEncoderFragment->setArgumentBuffer(ArgumentBufferFragment, 0);
     /////////////////////////////////////////////////////////////////////////////////
 
     std::cout << "Map seed: " << chunkClass.seed << std::endl;
@@ -263,23 +263,13 @@ void Renderer::build_buffers(MTL::Device* device) {
 }
 #pragma endregion build_buffers }
 
-#pragma region build_frame {
-void Renderer::build_frame(MTL::Device* device) {
-    for(int i = 0; i < kMaxFramesInFlight; i++) {
-        _pFrameData[i] = device->newBuffer(sizeof(FrameData), MTL::ResourceStorageModeManaged);
-    }
-
-    std::cout << "Frame built" <<std::endl;
-}
-#pragma endregion build_frame }
-
 #pragma  region build_depth {
 void Renderer::build_spencil(MTL::Device* device) {
     MTL::DepthStencilDescriptor* depthStencilDescriptor = MTL::DepthStencilDescriptor::alloc()->init();
     depthStencilDescriptor->setDepthCompareFunction(MTL::CompareFunction::CompareFunctionLess);
     depthStencilDescriptor->setDepthWriteEnabled(true);
 
-    pDepthStencilDescriptor = device->newDepthStencilState( depthStencilDescriptor );
+    DepthStencilState = device->newDepthStencilState( depthStencilDescriptor );
 
     depthStencilDescriptor->release();
 
@@ -303,7 +293,6 @@ void Renderer::run() {
     context->setup(window->glfwWindow);
 
     Renderer::build_shaders(context->device);
-    Renderer::build_frame(context->device);
     Renderer::build_spencil(context->device);
     Renderer::build_textures(context->device);
     Renderer::build_buffers(context->device);
@@ -324,17 +313,8 @@ void Renderer::run() {
 
     glm::vec2 menu_size = {window->window_size.x*0.5, window->window_size.y*0.5};
 
-    NS::Range textureRange = NS::Range(0, (sizeof(pTextureArr) / sizeof(pTextureArr[0])));
+    NS::Range textureRange = NS::Range(0, (sizeof(TextureArr)/sizeof(TextureArr[0])));
 
-    std::vector<int> chunkIndexToKeep = {};
-    chunkIndexToKeep.resize(chunkLine*chunkLine);
-
-    ////////////////////////Define buffers for these tripple buffered vars////////////////////////
-    for(int i = 0; i < 3; i++) {
-        _pNumberOfBlocksBufferVertex[i] = context->device->newBuffer(sizeof(NuberOfBlocksInChunk), MTL::ResourceStorageModeManaged);
-        _pChunkIndexesToBeRenderd[i] = context->device->newBuffer(sizeof(int)*chunkIndexToKeep.size(), MTL::ResourceStorageModeManaged);
-    }
-    //////////////////////////////////////////////////////////////////////////////////////////////
     bool first = true;
 
     std::cout << "Rendering" << std::endl;
@@ -343,43 +323,43 @@ void Renderer::run() {
         glfwPollEvents();
 
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-        context->pMetalDrawable = context->metalLayer->nextDrawable();
+        context->MetalDrawable = context->metalLayer->nextDrawable();
 
-        _frame = (_frame + 1) % kMaxFramesInFlight;
+        frame = (frame + 1) % kMaxFramesInFlight;
 
-        MTL::CommandBuffer* pCommandBuffer = context->commandQueue->commandBuffer();
+        MTL::CommandBuffer* CommandBuffer = context->commandQueue->commandBuffer();
         dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
-        pCommandBuffer->addCompletedHandler(^void(MTL::CommandBuffer* pCommandBuffer){
+        CommandBuffer->addCompletedHandler(^void(MTL::CommandBuffer* pCommandBuffer){
             dispatch_semaphore_signal(_semaphore);
         });
 
         ////////////////////////Update camera state////////////////////////
-        MTL::Buffer* pCameraDataBuffer = _pCameraDataBuffer[_frame];
+        MTL::Buffer* CameraDataBufferL = CameraDataBuffer[frame];
         if(glfwGetWindowAttrib(window->glfwWindow, GLFW_FOCUSED) || first) {
-            camera->update(pCameraDataBuffer,window->glfwWindow,window->window_size,delta_time, window);
+            camera->update(CameraDataBufferL,window->glfwWindow,window->window_size,delta_time, window);
             first = false;
         }
 
-        camera->pCameraData->worldTransform = camera->view_mat;
-        camera->pCameraData->worldNormalTransform = math::discardTranslation(camera->pCameraData->worldTransform);
-        camera->pCameraData->cameraPosition.x = camera->position.x; camera->pCameraData->cameraPosition.y = camera->position.y; camera->pCameraData->cameraPosition.z = camera->position.z;
-        pCameraDataBuffer->didModifyRange(NS::Range::Make(0, sizeof(CameraData)));
+        camera->CameraData->worldTransform = camera->view_mat;
+        camera->CameraData->worldNormalTransform = math::discardTranslation(camera->CameraData->worldTransform);
+        camera->CameraData->cameraPosition.x = camera->position.x; camera->CameraData->cameraPosition.y = camera->position.y; camera->CameraData->cameraPosition.z = camera->position.z;
+        CameraDataBufferL->didModifyRange(NS::Range::Make(0, sizeof(CameraDataS)));
         ///////////////////////////////////////////////////////////////////
 
-        MTL::RenderPassDescriptor* pRenderPassDescriptor = MTL::RenderPassDescriptor::alloc()->init();
+        MTL::RenderPassDescriptor* RenderPassDescriptor = MTL::RenderPassDescriptor::alloc()->init();
 
         ///////////////////////////////////////Setup drawing plane//////////////////////////////////////////
-        MTL::RenderPassColorAttachmentDescriptor* pRenderPassColorAttachmentDescriptor = pRenderPassDescriptor->colorAttachments()->object(0);
-        pRenderPassColorAttachmentDescriptor->setTexture(context->pMetalDrawable->texture());
-        pRenderPassColorAttachmentDescriptor->setLoadAction(MTL::LoadActionClear);
-        pRenderPassColorAttachmentDescriptor->setClearColor(MTL::ClearColor(.2f, .2f, .3f, 1.0f));
-        pRenderPassColorAttachmentDescriptor->setStoreAction(MTL::StoreActionStore);
+        MTL::RenderPassColorAttachmentDescriptor* RenderPassColorAttachmentDescriptor = RenderPassDescriptor->colorAttachments()->object(0);
+        RenderPassColorAttachmentDescriptor->setTexture(context->MetalDrawable->texture());
+        RenderPassColorAttachmentDescriptor->setLoadAction(MTL::LoadActionClear);
+        RenderPassColorAttachmentDescriptor->setClearColor(MTL::ClearColor(.2f, .2f, .3f, 1.0f));
+        RenderPassColorAttachmentDescriptor->setStoreAction(MTL::StoreActionStore);
         ///////////////////////////////////////////////////////////////////////////////////////////////////
         /////////////////////Create imGui frame for drawing//////////////////////////////
         ImGui::GetIO().DisplayFramebufferScale = ImVec2(2,2);
         ImGui::GetIO().DisplaySize = ImVec2(static_cast<float>(window->window_size.x), static_cast<float>(window->window_size.y));
 
-        ImGui_ImplMetal_NewFrame(pRenderPassDescriptor);
+        ImGui_ImplMetal_NewFrame(RenderPassDescriptor);
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         /////////////////////////////////////////////////////////////////////////////////
@@ -388,7 +368,7 @@ void Renderer::run() {
             if(window->options) {
                 ImGui::SetWindowSize("Options",ImVec2(menu_size.x, menu_size.y), 0);
                 ImGui::SetWindowPos("Options", ImVec2(window->window_size.x*0.5f - menu_size.x * 0.5f, window->window_size.y*0.5f - menu_size.y * 0.5f), 0);
-                ImGui::Begin("Options", p_open , window_flags);
+                ImGui::Begin("Options", open , window_flags);
                 ImGui::SetWindowFontScale(2);
                 if(ImGui::Button("Back", ImVec2(menu_size.x, menu_size.y/3))) {
                     window->options = false;
@@ -399,7 +379,7 @@ void Renderer::run() {
                 ImGui::SetWindowSize("Menu",ImVec2(menu_size.x, menu_size.y), 0);
                 ImGui::SetWindowPos("Menu", ImVec2(window->window_size.x*0.5f - menu_size.x * 0.5f, window->window_size.y*0.5f - menu_size.y * 0.5f), 0);
 
-                ImGui::Begin("Menu", p_open , window_flags);
+                ImGui::Begin("Menu", open , window_flags);
                 ImGui::SetWindowFontScale(2);
                 if(ImGui::Button("Options", ImVec2(menu_size.x, menu_size.y/3))) {
                     window->options = true;
@@ -410,15 +390,15 @@ void Renderer::run() {
                 }
                 if(ImGui::Button("Quit", ImVec2(menu_size.x, menu_size.y/3))) {
                     ///////////////////////Releasing everything created/////////////////////////////
-                    pCommandEncoder->endEncoding();
+                    CommandEncoder->endEncoding();
                     pool->release();
                     context->commandQueue->release();
                     context->ns_window->release();
                     context->metalLayer->release();
                     glfwTerminate();
                     context->device->release();
-                    _pShaderLibrary->release();
-                    pRenderPipelineState->release();
+                    RenderPipelineState->release();
+                    DepthStencilState->release();
 
                     ImGui_ImplMetal_Shutdown();
                     ImGui_ImplGlfw_Shutdown();
@@ -432,7 +412,7 @@ void Renderer::run() {
         else {
             ImGui::SetWindowSize(" ", ImVec2(0, 0), 0);
             ImGui::SetWindowPos(" ", ImVec2(5,5), 0);
-            ImGui::Begin(" ", p_open, window_flags);
+            ImGui::Begin(" ", open, window_flags);
             ImGui::SetWindowFontScale(2);
             ImGui::Text("X: %.0f, Y: %.0f, Z: %.0f\n%.1fFPS, %.3fms", camera->position.x, camera->position.y, camera->position.z, ImGui::GetIO().Framerate, 1000.0f / ImGui::GetIO().Framerate);
             ImGui::End();
@@ -453,49 +433,48 @@ void Renderer::run() {
                 counter++;
             }
         }
-        MTL::Buffer* chunkIndexBuffer = _pChunkIndexesToBeRenderd[_frame];
+        MTL::Buffer* chunkIndexBuffer = ChunkIndexesToBeRenderd[frame];
 
         memcpy(chunkIndexBuffer->contents(), chunkIndexToKeep.data(), sizeof(int) * chunkIndexToKeep.size());
 
         chunkIndexBuffer->didModifyRange(NS::Range::Make(0, chunkIndexBuffer->length()));
 
-        MTL::Buffer* numberOfBlocksBuffer = _pNumberOfBlocksBufferVertex[_frame];
+        MTL::Buffer* numberOfBlocksBuffer = NumberOfBlocksBufferVertex[frame];
 
         memcpy(numberOfBlocksBuffer->contents(), &numberOfBlocksInChunk, sizeof(NuberOfBlocksInChunk));
 
         numberOfBlocksBuffer->didModifyRange(NS::Range::Make(0, numberOfBlocksBuffer->length()));
 
-        MTL::RenderCommandEncoder* pCommandEncoder = pCommandBuffer->renderCommandEncoder( pRenderPassDescriptor);
+        MTL::RenderCommandEncoder* CommandEncoder = CommandBuffer->renderCommandEncoder( RenderPassDescriptor);
 
-        pCommandEncoder->setRenderPipelineState( pRenderPipelineState );
-        pCommandEncoder->setDepthStencilState( pDepthStencilDescriptor );
+        CommandEncoder->setRenderPipelineState( RenderPipelineState );
+        CommandEncoder->setDepthStencilState( DepthStencilState );
 
         //////////////////////////////////////Set buffers//////////////////////////////////////////
-        pCommandEncoder->setVertexBuffer( pCameraDataBuffer, 0, 1 );
-        pCommandEncoder->setVertexBuffer( chunkVertexBuffer, 0, 2 );
-        pCommandEncoder->setVertexBuffer( numberOfBlocksBuffer, 0, 3 );
-        pCommandEncoder->setVertexBuffer( _ptexture_real_indexBufferVertex, 0, 4 );
-        pCommandEncoder->setVertexBuffer( _ptexture_side_amountsBufferVertex, 0, 5 );
-        pCommandEncoder->setVertexBuffer( chunkIndexBuffer, 0, 6 );
+        CommandEncoder->setVertexBuffer(CameraDataBufferL, 0, 1);
+        CommandEncoder->setVertexBuffer(chunkVertexBuffer, 0, 2);
+        CommandEncoder->setVertexBuffer(numberOfBlocksBuffer, 0, 3 );
+        CommandEncoder->setVertexBuffer(texture_real_index_buffer_vertex, 0, 4);
+        CommandEncoder->setVertexBuffer(texture_side_amounts_buffer_vertex, 0, 5);
+        CommandEncoder->setVertexBuffer(chunkIndexBuffer, 0, 6);
 
-        pArgumentEncoderFragment->setTextures( pTextureArr, textureRange);
-        pCommandEncoder->setFragmentBuffer(pArgumentBufferFragment, 0, 0);
+        ArgumentEncoderFragment->setTextures(TextureArr, textureRange);
+        CommandEncoder->setFragmentBuffer(ArgumentBufferFragment, 0, 0);
         //////////////////////////////////////////////////////////////////////////////////////////
 
-        pCommandEncoder->setCullMode(MTL::CullModeBack);
-        pCommandEncoder->setFrontFacingWinding(MTL::Winding::WindingCounterClockwise);
+        CommandEncoder->setCullMode(MTL::CullModeBack);
+        CommandEncoder->setFrontFacingWinding(MTL::Winding::WindingCounterClockwise);
 
-        pCommandEncoder->drawPrimitives(MTL::PrimitiveType::PrimitiveTypeTriangle, 0, 36, blockCount);
+        CommandEncoder->drawPrimitives(MTL::PrimitiveType::PrimitiveTypeTriangle, 0, 36, blockCount);
 
-        pCommandEncoder->setCullMode(MTL::CullModeBack);
-        pCommandEncoder->setFrontFacingWinding(MTL::Winding::WindingClockwise);
-        ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), pCommandBuffer, pCommandEncoder);
+        CommandEncoder->setFrontFacingWinding(MTL::Winding::WindingClockwise);
+        ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), CommandBuffer, CommandEncoder);
         
 
-        pCommandEncoder->endEncoding();
-        pCommandBuffer->presentDrawable(context->pMetalDrawable);
-        pCommandBuffer->commit();
-        pCommandBuffer->waitUntilCompleted();
+        CommandEncoder->endEncoding();
+        CommandBuffer->presentDrawable(context->MetalDrawable);
+        CommandBuffer->commit();
+        CommandBuffer->waitUntilCompleted();
 
         pool->release();
         /////////////////////////////////////////////////////////////////////////////////////////////
@@ -511,8 +490,8 @@ void Renderer::run() {
     context->metalLayer->release();
     glfwTerminate();
     context->device->release();
-    _pShaderLibrary->release();
-    pRenderPipelineState->release();
+    RenderPipelineState->release();
+    DepthStencilState->release();
 
     ImGui_ImplMetal_Shutdown();
     ImGui_ImplGlfw_Shutdown();

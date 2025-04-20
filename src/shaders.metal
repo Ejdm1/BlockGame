@@ -218,11 +218,11 @@ v2f vertex vertexMain(device const CameraData& cameraData [[buffer(1)]],
             o.side = texture_real_index[block_ID];
             break;
     }
-
     return o;
 }
+
 half4 fragment fragmentMain(v2f in [[stage_in]], device Textures &textures [[buffer(0)]]) {
-    if(in.del || in.tooFar > 152) {discard_fragment();}
+    if(in.del || in.tooFar > 136) {discard_fragment();}
     sampler s;
     if(in.side == 20) {
         s = sampler(address::repeat, mag_filter::nearest, min_filter::nearest, mip_filter::none, lod_clamp(0.0, 0.0));
