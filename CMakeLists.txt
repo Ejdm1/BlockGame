@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_executable(test src/backend/glfw_adapter.mm
                     src/camera.cpp src/context.cpp
-                    src/metal_bullshit.cpp src/renderer.cpp
+                    src/metal_stuff.cpp src/renderer.cpp
                     src/window.cpp 
                     src/main.cpp
                     src/chunk.cpp
