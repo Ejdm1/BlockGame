@@ -8,6 +8,7 @@ struct v2f {
     int side;
     bool del = false;
     float tooFar;
+    bool fog;
 };
 
 struct VertexData {
@@ -146,9 +147,11 @@ v2f vertex vertexMain(device const CameraData& cameraData [[buffer(1)]],
                       device const int* texture_real_index [[buffer(4)]],
                       device const int* texture_side_amounts [[buffer(5)]],
                       device const int* chunkIndexes [[buffer(6)]],
+                      device const bool* distanceFog [[buffer(7)]],
                       uint counter [[vertex_id]],
                       uint instance [[instance_id]]) {
     v2f o;
+    o.fog = *distanceFog;
     int blockNumber = 0;
     int chunkIndex = 0;
     int blockIndex = 0;
@@ -222,7 +225,12 @@ v2f vertex vertexMain(device const CameraData& cameraData [[buffer(1)]],
 }
 
 half4 fragment fragmentMain(v2f in [[stage_in]], device Textures &textures [[buffer(0)]]) {
-    if(in.del || in.tooFar > 136) {discard_fragment();}
+    if(in.fog) {
+        if(in.del || in.tooFar > 136) {discard_fragment();}
+    }
+    else {
+        if(in.del) {discard_fragment();}
+    }
     sampler s;
     if(in.side == 20) {
         s = sampler(address::repeat, mag_filter::nearest, min_filter::nearest, mip_filter::none, lod_clamp(0.0, 0.0));

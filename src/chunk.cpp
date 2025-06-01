@@ -46,8 +46,11 @@ void generateNoise(FastNoise::SmartNode<> generator, std::vector<float>& noiseMa
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict) {
+void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict, bool regenerate, int chunkLine) {
     //////////////////////////////Chunk creator//////////////////////////////////////
+    int chunkCount = chunkLine * chunkLine;
+    std::string mapFileName = "map" + std::to_string(chunkLine) + "x" + std::to_string(chunkLine);
+    numberOfBlocksInChunk.nuberOfBlocks.resize(chunkCount);
     std::vector<Chunk> chunk = {};
     chunk.resize(chunkCount);
 
@@ -67,14 +70,10 @@ void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict
         NoiseMaps noiseMaps[chunkCount];
         auto generator = Generate_Terrain();
         std::vector<glm::vec2> positions;
-        
 
         for(int i = 0; i < chunkCount; i++) {
             noiseMaps[i].noiseMap = std::vector<float>(128*16*16);
         }
-
-        srand(time(0));
-        seed = rand() % 100000;
 
         if(chunkLine < 32) {
             std::vector<std::thread> threads;
@@ -363,7 +362,7 @@ void ChunkClass::generateChunk(std::unordered_map<std::string, int> texturesDict
         chunkToGPU[c].chunkPos = loadedChunkPos[c];
     }
     /////////////////////////////////////////////////////////////////////////////////
-    for(int i = 0; i < sizeof(numberOfBlocksInChunk.nuberOfBlocks)/sizeof(numberOfBlocksInChunk.nuberOfBlocks[0]); i++) {
+    for(int i = 0; i < numberOfBlocksInChunk.nuberOfBlocks.size(); i++) {
         blockCounter += numberOfBlocksInChunk.nuberOfBlocks[i];
     }
 }

@@ -2,10 +2,10 @@ cmake_minimum_required(VERSION 3.28.0)
 project(test VERSION 1.0.0)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-include(FetchContent)
+# include(FetchContent)
 
-FetchContent_Declare(FastNoise2 GIT_REPOSITORY https://github.com/Auburn/FastNoise2.git)
-FetchContent_MakeAvailable(FastNoise2)
+# FetchContent_Declare(FastNoise2 GIT_REPOSITORY https://github.com/Auburn/FastNoise2.git)
+# FetchContent_MakeAvailable(FastNoise2)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -35,6 +35,7 @@ target_include_directories(test PRIVATE src)
 
 add_subdirectory(dependencies/glfw)
 add_subdirectory(dependencies/glm)
+add_subdirectory(dependencies/FastNoise2)
 
 target_link_libraries(test PRIVATE "-framework Metal"
                                    "-framework MetalKit" 

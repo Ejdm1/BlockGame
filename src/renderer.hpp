@@ -17,27 +17,28 @@
 #include "chunk.hpp"
 #include "math.hpp"
 
-
-#include <chrono>
 #include <string>
 
 struct Renderer {
     void build_shaders(MTL::Device* device);
-    void build_buffers(MTL::Device* device);
+    void build_buffers(MTL::Device* device, bool first, int chunkLine);
     void build_spencil(MTL::Device* device);
     void build_textures(MTL::Device* device);
+    void GetMaps();
     void run();
     static constexpr size_t kMaxFramesInFlight = 3;
     MTL::RenderPipelineState* RenderPipelineState;
     MTL::DepthStencilState* DepthStencilState;
     int frame = 0;
+    int mapIndex = 0;
+    bool regenerate = false;
     dispatch_semaphore_t _semaphore;
     MTL::ArgumentEncoder* ArgumentEncoderFragment;
     MTL::Buffer* ArgumentBufferFragment;
-    MTL::Buffer* chunkVertexBuffer;
     MTL::Buffer* CameraDataBuffer[kMaxFramesInFlight];
     MTL::Buffer* NumberOfBlocksBufferVertex[kMaxFramesInFlight];
     MTL::Buffer* ChunkIndexesToBeRenderd[kMaxFramesInFlight];
+    MTL::Buffer* mapBuffers[2];
     MTL::Buffer* texture_side_amounts_buffer_vertex;
     MTL::Buffer* texture_real_index_buffer_vertex;
     MTL::Texture* TextureArr[128] = {};
@@ -52,6 +53,10 @@ struct Renderer {
     int instanceCount = 16*16*128;
     std::unordered_map<std::string, int> texturesDict;
     ChunkClass chunkClass;
+    bool inAppRegenerate = false;
+    bool loadMap = false;
+    std::vector<std::string> names;
+    std::vector<int> seeds;
 };
 
 static const std::vector<std::string> texture_end_names = {

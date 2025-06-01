@@ -225,37 +225,43 @@ void Renderer::build_textures(MTL::Device* device) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma region build_buffers {
-void Renderer::build_buffers(MTL::Device* device) {
+void Renderer::build_buffers(MTL::Device* device, bool first, int chunkLine) {
     using simd::float2;
     using simd::float3;
 
-    chunkClass.generateChunk(texturesDict);
+    if(first && regenerate) {
+        srand(time(0));
+        chunkClass.seed = rand() % 100000;
+    }
+    if(inAppRegenerate && !loadMap) {
+        regenerate = true;
+        srand(time(0));
+        chunkClass.seed = rand() % 100000;
+    }
+
+    chunkClass.generateChunk(texturesDict, regenerate, chunkLine);
+    regenerate = false;
+    loadMap = false;
 
     //////////////////////Creating buffers for tripple buffering/////////////////////
     chunkIndexToKeep.resize(chunkLine*chunkLine);
     for (int i = 0; i < kMaxFramesInFlight; i++) {
         CameraDataBuffer[i] = device->newBuffer(kMaxFramesInFlight * sizeof(CameraDataS), MTL::ResourceStorageModeManaged);
-        NumberOfBlocksBufferVertex[i] = device->newBuffer(sizeof(NuberOfBlocksInChunk), MTL::ResourceStorageModeManaged);
+        NumberOfBlocksBufferVertex[i] = device->newBuffer(sizeof(int)*chunkLine*chunkLine, MTL::ResourceStorageModeManaged);
         ChunkIndexesToBeRenderd[i] = device->newBuffer(sizeof(int)*chunkIndexToKeep.size(), MTL::ResourceStorageModeManaged);
     }
     /////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////Chunk data to GPU////////////////////////////////
-    const size_t chunkDataSize = sizeof(ChunkToGPU) * chunkClass.chunkToGPU.size();
-
-    MTL::Buffer* ArgumentBufferVertex = device->newBuffer(chunkDataSize, MTL::ResourceStorageModeManaged);
-
-    chunkVertexBuffer = ArgumentBufferVertex;
-
-    memcpy(chunkVertexBuffer->contents(), chunkClass.chunkToGPU.data(), chunkDataSize);
-
-    chunkVertexBuffer->didModifyRange(NS::Range::Make(0, chunkVertexBuffer->length()));
-    /////////////////////////////////////////////////////////////////////////////////
+    for(int j = 0; j < 2; j++) {
+        mapBuffers[j] = device->newBuffer(sizeof(ChunkToGPU) * chunkClass.chunkToGPU.size(), MTL::ResourceStorageModeManaged);
+    }
     ////////////////////////////////Buffer for textures//////////////////////////////
-    ArgumentEncoderFragment = FragmentFunction->newArgumentEncoder(0);
+    if(first) {
+        ArgumentEncoderFragment = FragmentFunction->newArgumentEncoder(0);
 
-    ArgumentBufferFragment = device->newBuffer(ArgumentEncoderFragment->encodedLength(), MTL::ResourceStorageModeManaged);
+        ArgumentBufferFragment = device->newBuffer(ArgumentEncoderFragment->encodedLength(), MTL::ResourceStorageModeManaged);
 
-    ArgumentEncoderFragment->setArgumentBuffer(ArgumentBufferFragment, 0);
+        ArgumentEncoderFragment->setArgumentBuffer(ArgumentBufferFragment, 0);
+    }
     /////////////////////////////////////////////////////////////////////////////////
 
     std::cout << "Map seed: " << chunkClass.seed << std::endl;
@@ -277,6 +283,28 @@ void Renderer::build_spencil(MTL::Device* device) {
 }
 #pragma endregion build_depth }
 
+void Renderer::GetMaps() {
+    names.clear();
+    seeds.clear();
+    for(int i = 4; i < 512; i = i * 2) {
+        if(std::filesystem::exists("map" + std::to_string(i) + "x" + std::to_string(i) + ".txt")) {
+            names.push_back("map" + std::to_string(i) + "x" + std::to_string(i));
+        }
+    }
+    std::string data;
+    for(int j = 0; j < names.size(); j++) {
+        std::ifstream chunkFileRead(names[j] + ".txt");
+        std::getline(chunkFileRead, data);
+        int counter = 0;
+        std::string tempSeed = "";
+        while(data[counter] != '-') {
+            tempSeed += data[counter];
+            counter++;
+        }
+        seeds.push_back(std::stoi(tempSeed));
+    }
+}
+
 #pragma region render {
 void Renderer::run() {
     using simd::float4x4;
@@ -287,6 +315,10 @@ void Renderer::run() {
     Window* window = new Window;
     Camera* camera = new Camera;
 
+    bool first = true;
+    int chunkLine = 8;
+    int newChunkLine = 8;
+
     window->create_window();
     window->cursor_setup(true, window->glfwWindow, window->window_size);
 
@@ -295,7 +327,7 @@ void Renderer::run() {
     Renderer::build_shaders(context->device);
     Renderer::build_spencil(context->device);
     Renderer::build_textures(context->device);
-    Renderer::build_buffers(context->device);
+    Renderer::build_buffers(context->device, first, chunkLine);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -315,7 +347,28 @@ void Renderer::run() {
 
     NS::Range textureRange = NS::Range(0, (sizeof(TextureArr)/sizeof(TextureArr[0])));
 
-    bool first = true;
+    bool renderDist = true;
+    bool culling = true;
+    bool winding = true;
+    bool depth = true;
+    bool distanceFog = true;
+    int blockCount = 0;
+    int renderDistance = 10;
+
+    GetMaps();
+
+    ///////////ImGui font setup////////////
+    ImGuiIO& io = ImGui::GetIO();
+
+    ImFontConfig config1;
+    config1.SizePixels = 24.0f;
+
+    ImFontConfig config2;
+    config2.SizePixels = 16.0f;
+
+    ImFont* FPSFont = io.Fonts->AddFontDefault(&config1);
+    ImFont* evrElse = io.Fonts->AddFontDefault(&config2);
+    ///////////////////////////////////////
 
     std::cout << "Rendering" << std::endl;
 
@@ -352,7 +405,7 @@ void Renderer::run() {
         MTL::RenderPassColorAttachmentDescriptor* RenderPassColorAttachmentDescriptor = RenderPassDescriptor->colorAttachments()->object(0);
         RenderPassColorAttachmentDescriptor->setTexture(context->MetalDrawable->texture());
         RenderPassColorAttachmentDescriptor->setLoadAction(MTL::LoadActionClear);
-        RenderPassColorAttachmentDescriptor->setClearColor(MTL::ClearColor(.2f, .2f, .3f, 1.0f));
+        RenderPassColorAttachmentDescriptor->setClearColor(MTL::ClearColor(.4f, .6f, .9f, 1.0f));
         RenderPassColorAttachmentDescriptor->setStoreAction(MTL::StoreActionStore);
         ///////////////////////////////////////////////////////////////////////////////////////////////////
         /////////////////////Create imGui frame for drawing//////////////////////////////
@@ -364,6 +417,7 @@ void Renderer::run() {
         ImGui::NewFrame();
         /////////////////////////////////////////////////////////////////////////////////
         //////////////Creating FPS counter or menu if active(using imGui)////////////////
+        ImGui::PushFont(evrElse);
         if(window->menu) {
             if(window->options) {
                 ImGui::SetWindowSize("Options",ImVec2(menu_size.x, menu_size.y), 0);
@@ -373,6 +427,136 @@ void Renderer::run() {
                 if(ImGui::Button("Back", ImVec2(menu_size.x, menu_size.y/3))) {
                     window->options = false;
                 }
+
+                ImGui::PushItemWidth(menu_size.x/3);
+                if(ImGui::Button("Regenerate", ImVec2(menu_size.x/2 - 5, 35))) {
+                    mapIndex++;
+                    if(mapIndex > 1) {
+                        mapIndex = 0;
+                    }
+                    regenerate = true;
+                    int tempSeed = chunkClass.seed;
+                    ChunkClass newChunkClass;
+                    chunkClass = newChunkClass;
+                    chunkClass.seed = tempSeed;
+                    chunkLine = newChunkLine;
+                    build_buffers(context->device, first, chunkLine);
+                    GetMaps();
+                }
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(menu_size.x/2 + 5);
+                if(ImGui::Button("Load(if exists)", ImVec2(menu_size.x/2 - 5, 35))) {
+                    mapIndex++;
+                    if(mapIndex > 1) {
+                        mapIndex = 0;
+                    }
+                    loadMap = true;
+                    int tempSeed = chunkClass.seed;
+                    ChunkClass newChunkClass;
+                    chunkClass = newChunkClass;
+                    chunkClass.seed = tempSeed;
+                    chunkLine = newChunkLine;
+                    build_buffers(context->device, first, chunkLine);
+                }
+
+                ImGui::Text("Chunk amount: ");
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(menu_size.x-menu_size.x/3);
+                const char* items2[] = {"4", "8", "16", "32", "64", "128"};
+                static const char* current_item2 = "8";
+                if (ImGui::BeginCombo("##1", current_item2))
+                {
+                    for (int n = 0; n < IM_ARRAYSIZE(items2); n++)
+                    {
+                        bool is_selected2 = (current_item2 == items2[n]);
+                        if (ImGui::Selectable(items2[n], is_selected2)) {
+                            current_item2 = items2[n];
+                            newChunkLine = std::atoi(current_item2);
+                        }
+                        if (is_selected2) {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+
+                ImGui::Text("Seed: ");
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(menu_size.x-menu_size.x/3);
+                ImGui::InputInt("##2", &chunkClass.seed, 1, 1);
+
+                ImGui::Text("Generate new seed: ");
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(menu_size.x - 33);
+                ImGui::Checkbox("##3", &inAppRegenerate);
+
+                ImGui::Text("Render distance: ");
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(menu_size.x - 33);
+                ImGui::Checkbox("##4", &renderDist);
+
+                ImGui::Text("Distance fog: ");
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(menu_size.x - 33);
+                ImGui::Checkbox("##5", &distanceFog);
+
+                ImGui::Text("Culling: ");
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(menu_size.x - 33);
+                ImGui::Checkbox("##6", &culling);
+
+                ImGui::Text("Depth: ");
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(menu_size.x - 33);
+                ImGui::Checkbox("##7", &depth);
+
+                ImGui::Text("Winding: ");
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(menu_size.x-menu_size.x/3);
+                const char* items[] = { "CounterClockWise", "ClockWise"};
+                static const char* current_item = "CounterClockWise";
+                if (ImGui::BeginCombo("##8", current_item))
+                {
+                    for (int n = 0; n < IM_ARRAYSIZE(items); n++)
+                    {
+                        bool is_selected = (current_item == items[n]);
+                        if (ImGui::Selectable(items[n], is_selected)) {
+                            current_item = items[n];
+                            winding = !winding;
+                        }
+                        if (is_selected) {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+
+                ImGui::Text("Render distance(chunks): ");
+                ImGui::SameLine();
+                ImGui::SetCursorPosX(menu_size.x-menu_size.x/3);
+                const char* items1[] = { "4", "8", "10", "12", "16", "32", "100000"};
+                static const char* current_item1 = "10";
+                if (ImGui::BeginCombo("##9", current_item1))
+                {
+                    for (int n = 0; n < IM_ARRAYSIZE(items1); n++)
+                    {
+                        bool is_selected1 = (current_item1 == items1[n]);
+                        if (ImGui::Selectable(items1[n], is_selected1)) {
+                            current_item1 = items1[n];
+                            renderDistance = std::atoi(current_item1);
+                        }
+                        if (is_selected1) {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                std::string namesSeedsOut = "";
+                for(int i = 0; i < names.size(); i++) {
+                    namesSeedsOut = namesSeedsOut + names[i] + " - Seed: " + std::to_string(seeds[i]) + "\n";
+                }
+                ImGui::Text("%s",namesSeedsOut.c_str());
+                ImGui::PopItemWidth();
                 ImGui::End();
             }
             else {
@@ -409,24 +593,33 @@ void Renderer::run() {
                 ImGui::End();
             }
         }
-        else {
-            ImGui::SetWindowSize(" ", ImVec2(0, 0), 0);
-            ImGui::SetWindowPos(" ", ImVec2(5,5), 0);
-            ImGui::Begin(" ", open, window_flags);
-            ImGui::SetWindowFontScale(2);
-            ImGui::Text("X: %.0f, Y: %.0f, Z: %.0f\n%.1fFPS, %.3fms", camera->position.x, camera->position.y, camera->position.z, ImGui::GetIO().Framerate, 1000.0f / ImGui::GetIO().Framerate);
-            ImGui::End();
-        }
+        ImGui::PopFont();
+        ImGui::PushFont(FPSFont);
+        ImGui::Text("X: %.0f, Y: %.0f, Z: %.0f\n%.1fFPS, %.3fms\nInstance count: %i", camera->position.x, camera->position.y, camera->position.z, ImGui::GetIO().Framerate, 1000.0f / ImGui::GetIO().Framerate, blockCount);
+        ImGui::PopFont();
         /////////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////Set some things and render to screen////////////////////////////
-        ImGui::Render();
 
-        int blockCount = 0;
+        ////////////////////////////////Chunk data to GPU////////////////////////////////
+        memcpy(mapBuffers[mapIndex]->contents(), chunkClass.chunkToGPU.data(), sizeof(ChunkToGPU) * chunkClass.chunkToGPU.size());
+        mapBuffers[mapIndex]->didModifyRange(NS::Range::Make(0, mapBuffers[mapIndex]->length()));
+        /////////////////////////////////////////////////////////////////////////////////
+        ImGui::Render();
         NuberOfBlocksInChunk numberOfBlocksInChunk = {};
+        numberOfBlocksInChunk.nuberOfBlocks.resize(chunkLine*chunkLine);
         int counter = 0;
-        for(int i = 0; i < chunkClass.chunkCount;i++) {
+        blockCount = 0;
+        for(int i = 0; i < chunkLine*chunkLine;i++) {
             float temp = glm::distance(glm::vec3{camera->position.x, 0.0, camera->position.z}, glm::vec3{GetChunkPosition(chunkClass.chunkToGPU[i].chunkPos).x * 16 + 8, 0.0, GetChunkPosition(chunkClass.chunkToGPU[i].chunkPos).y * 16 + 8});
-            if(temp <= renderDistance*16) {
+            if(renderDist) {
+                if(temp <= renderDistance*16) {
+                    chunkIndexToKeep[counter] = i;
+                    numberOfBlocksInChunk.nuberOfBlocks[counter] = chunkClass.numberOfBlocksInChunk.nuberOfBlocks[i];
+                    blockCount += chunkClass.numberOfBlocksInChunk.nuberOfBlocks[i];
+                    counter++;
+                }
+            }
+            else {
                 chunkIndexToKeep[counter] = i;
                 numberOfBlocksInChunk.nuberOfBlocks[counter] = chunkClass.numberOfBlocksInChunk.nuberOfBlocks[i];
                 blockCount += chunkClass.numberOfBlocksInChunk.nuberOfBlocks[i];
@@ -439,31 +632,51 @@ void Renderer::run() {
 
         chunkIndexBuffer->didModifyRange(NS::Range::Make(0, chunkIndexBuffer->length()));
 
+
+
         MTL::Buffer* numberOfBlocksBuffer = NumberOfBlocksBufferVertex[frame];
 
-        memcpy(numberOfBlocksBuffer->contents(), &numberOfBlocksInChunk, sizeof(NuberOfBlocksInChunk));
+        memcpy(numberOfBlocksBuffer->contents(), numberOfBlocksInChunk.nuberOfBlocks.data(), sizeof(int)*chunkLine*chunkLine);
 
         numberOfBlocksBuffer->didModifyRange(NS::Range::Make(0, numberOfBlocksBuffer->length()));
+
+
+
+        MTL::Buffer* fogBuff = context->device->newBuffer(sizeof(distanceFog), MTL::ResourceStorageModeManaged);
+
+        memcpy(fogBuff->contents(), &distanceFog, sizeof(distanceFog));
+
+        fogBuff->didModifyRange(NS::Range::Make(0, fogBuff->length()));
 
         MTL::RenderCommandEncoder* CommandEncoder = CommandBuffer->renderCommandEncoder( RenderPassDescriptor);
 
         CommandEncoder->setRenderPipelineState( RenderPipelineState );
-        CommandEncoder->setDepthStencilState( DepthStencilState );
+        if(depth) {
+            CommandEncoder->setDepthStencilState(DepthStencilState);
+        }
 
         //////////////////////////////////////Set buffers//////////////////////////////////////////
         CommandEncoder->setVertexBuffer(CameraDataBufferL, 0, 1);
-        CommandEncoder->setVertexBuffer(chunkVertexBuffer, 0, 2);
+        CommandEncoder->setVertexBuffer(mapBuffers[mapIndex], 0, 2);
         CommandEncoder->setVertexBuffer(numberOfBlocksBuffer, 0, 3 );
         CommandEncoder->setVertexBuffer(texture_real_index_buffer_vertex, 0, 4);
         CommandEncoder->setVertexBuffer(texture_side_amounts_buffer_vertex, 0, 5);
         CommandEncoder->setVertexBuffer(chunkIndexBuffer, 0, 6);
+        CommandEncoder->setVertexBuffer(fogBuff, 0, 7);
 
         ArgumentEncoderFragment->setTextures(TextureArr, textureRange);
         CommandEncoder->setFragmentBuffer(ArgumentBufferFragment, 0, 0);
         //////////////////////////////////////////////////////////////////////////////////////////
 
-        CommandEncoder->setCullMode(MTL::CullModeBack);
-        CommandEncoder->setFrontFacingWinding(MTL::Winding::WindingCounterClockwise);
+        if(culling) {
+            CommandEncoder->setCullMode(MTL::CullModeBack);
+        }
+        if(winding) {
+            CommandEncoder->setFrontFacingWinding(MTL::Winding::WindingCounterClockwise);
+        }
+        else {
+            CommandEncoder->setFrontFacingWinding(MTL::Winding::WindingClockwise);
+        }
 
         CommandEncoder->drawPrimitives(MTL::PrimitiveType::PrimitiveTypeTriangle, 0, 36, blockCount);
 

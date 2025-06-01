@@ -6,9 +6,7 @@
 #include <glm/glm.hpp>
 #include <simd/simd.h>
 
-const int chunkLine = 32;
-const bool regenerate = false;
-const int renderDistance = 9;
+
 
 struct Chunk {
     int chunkPos;
@@ -21,7 +19,8 @@ struct ChunkToGPU {
 };
 
 struct NuberOfBlocksInChunk {
-    int nuberOfBlocks[chunkLine*chunkLine];
+    // int [chunkLine*chunkLine];
+    std::vector<int> nuberOfBlocks;
 };
 
 struct NoiseMaps {
@@ -29,10 +28,8 @@ struct NoiseMaps {
 };
 
 struct ChunkClass {
-    void generateChunk(std::unordered_map<std::string, int> texturesDict);
+    void generateChunk(std::unordered_map<std::string, int> texturesDict, bool regenerate, int chunkLine);
     std::vector<ChunkToGPU> chunkToGPU = {};
-    std::string mapFileName = "map" + std::to_string(chunkLine) + "x" + std::to_string(chunkLine);
-    int chunkCount = chunkLine * chunkLine;
     NuberOfBlocksInChunk numberOfBlocksInChunk;
     int seed;
     int blockCounter = 0;
